@@ -342,28 +342,118 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
   }
 });
 
-
 // Get all bookings for a specific owner
 app.get("/bookings/owner/:ownerId", async (req, res) => {
-    try {
-        const { ownerId } = req.params;
+  try {
+    const { ownerId } = req.params;
 
-        const bookings = await bookingCollection
-            .find({ ownerId })
-            .sort({ createdAt: -1 })
-            .toArray();
+    const bookings = await bookingCollection
+      .aggregate([
+        {
+          $match: { ownerId },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $lookup: {
+            from: "user",
+            let: { customerId: "$customerId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$customerId"],
+                  },
+                },
+              },
+            ],
+            as: "customer",
+          },
+        },
+        {
+          $unwind: {
+            path: "$customer",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            equipmentId: 1,
+            customerId: 1,
+            ownerId: 1,
+            startDate: 1,
+            endDate: 1,
+            totalPrice: 1,
+            status: 1,
+            createdAt: 1,
+            customerName: "$customer.name",
+            customerEmail: "$customer.email",
+          },
+        },
+      ])
+      .toArray();
 
-        res.status(200).json({
-            success: true,
-            data: bookings,
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch owner bookings",
-        });
-    }
+    res.json({
+      success: true,
+      data: bookings,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch owner bookings",
+    });
+  }
 });
+
+
+// Approve or Reject Booking
+app.patch("/bookings/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking status",
+      });
+    }
+
+    const result = await bookingCollection.updateOne(
+      {
+        _id: new ObjectId(id),
+        status: "pending",
+      },
+      {
+        $set: {
+          status,
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Pending booking not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Booking ${status} successfully`,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update booking status",
+    });
+  }
+});
+
+
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
