@@ -172,6 +172,79 @@ app.post("/equipment", async (req, res) => {
   }
 });
 
+// update equipment by id
+app.patch("/equipment/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            ownerId,
+            name,
+            category,
+            description,
+            pricePerDay,
+            location,
+            images,
+        } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid equipment ID",
+            });
+        }
+
+        if (
+            !ownerId ||
+            !name ||
+            !category ||
+            !description ||
+            !pricePerDay ||
+            !location
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide all required fields",
+            });
+        }
+
+        const result = await equipmentCollection.updateOne(
+            {
+                _id: new ObjectId(id),
+                ownerId,
+            },
+            {
+                $set: {
+                    name,
+                    category,
+                    description,
+                    pricePerDay: Number(pricePerDay),
+                    location,
+                    images: images || [],
+                    updatedAt: new Date(),
+                },
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Equipment not found",
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Equipment updated successfully",
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to update equipment",
+        });
+    }
+});
+
+
 // add bookings
 app.post("/bookings", async (req, res) => {
   try {
