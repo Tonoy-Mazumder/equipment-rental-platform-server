@@ -94,6 +94,27 @@ app.get("/equipment/:id", async (req, res) => {
     });
   }
 });
+// Get equipment by owner ID
+app.get("/equipment/owner/:ownerId", async (req, res) => {
+  try {
+    const { ownerId } = req.params;
+
+    const equipment = await equipmentCollection
+      .find({ ownerId })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      data: equipment,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch owner equipment",
+    });
+  }
+});
 // add equipment
 app.post("/equipment", async (req, res) => {
   try {
