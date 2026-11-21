@@ -35,6 +35,7 @@ const connectedClient = await connectToMongoDB();
 
 const database = connectedClient.db("RentPro");
 const equipmentCollection = database.collection("equipment");
+const bookingCollection = database.collection("bookings");
 console.log("Database:", database.databaseName);
 
 app.get("/", (req, res) => {
@@ -170,6 +171,56 @@ app.post("/equipment", async (req, res) => {
     });
   }
 });
+
+// add bookings
+app.post("/bookings", async (req, res) => {
+  try {
+    const { equipmentId, customerId, ownerId, startDate, endDate, totalPrice } =
+      req.body;
+
+    if (
+      !equipmentId ||
+      !customerId ||
+      !ownerId ||
+      !startDate ||
+      !endDate ||
+      totalPrice === undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required fields",
+      });
+    }
+
+    const newBooking = {
+      equipmentId,
+      customerId,
+      ownerId,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      totalPrice: Number(totalPrice),
+      status: "pending",
+      createdAt: new Date(),
+    };
+
+    const result = await bookingCollection.insertOne(newBooking);
+
+    res.status(201).json({
+      success: true,
+      message: "Booking created successfully",
+      data: {
+        _id: result.insertedId,
+        ...newBooking,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to create booking",
+    });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
