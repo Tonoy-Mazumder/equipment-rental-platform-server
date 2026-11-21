@@ -242,6 +242,43 @@ app.get("/bookings/customer/:customerId", async (req, res) => {
   }
 });
 
+// Get single booking by ID
+app.get("/bookings/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check booking ID
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID",
+      });
+    }
+
+    // Find booking
+    const booking = await bookingCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    // Check booking exists
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: booking,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch booking",
+    });
+  }
+});
 // Cancel a booking by booking ID
 app.patch("/bookings/:id/cancel", async (req, res) => {
   try {
