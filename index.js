@@ -453,6 +453,95 @@ app.patch("/bookings/:id/status", async (req, res) => {
 });
 
 
+// Get owner rental history
+app.get("/bookings/owner/:ownerId/history", async (req, res) => {
+  try {
+    const { ownerId } = req.params;
+
+    const bookings = await bookingCollection.aggregate([
+      {
+        $match: { ownerId },
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+      {
+        $lookup: {
+          from: "user",
+          let: { customerId: "$customerId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    { $toString: "$_id" },
+                    "$$customerId",
+                  ],
+                },
+              },
+            },
+          ],
+          as: "customer",
+        },
+      },
+      {
+        $lookup: {
+          from: "equipment",
+          let: { equipmentId: "$equipmentId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    { $toString: "$_id" },
+                    "$$equipmentId",
+                  ],
+                },
+              },
+            },
+          ],
+          as: "equipment",
+        },
+      },
+      {
+        $unwind: {
+          path: "$customer",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $unwind: {
+          path: "$equipment",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          equipmentId: 1,
+          customerId: 1,
+          startDate: 1,
+          endDate: 1,
+          totalPrice: 1,
+          status: 1,
+          createdAt: 1,
+          customerName: "$customer.name",
+          customerEmail: "$customer.email",
+          equipmentName: "$equipment.name",
+        },
+      },
+    ]).toArray();
+
+    res.json({
+      success: true,
+      data: bookings,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch rental history",
+    });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
