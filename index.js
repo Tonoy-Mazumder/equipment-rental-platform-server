@@ -1,7 +1,7 @@
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -41,6 +41,7 @@ app.get("/", (req, res) => {
   res.send("RentPro server is running!");
 });
 
+// get all equipment
 app.get("/equipment", async (req, res) => {
   try {
     const equipment = await equipmentCollection.find().toArray();
@@ -56,7 +57,44 @@ app.get("/equipment", async (req, res) => {
     });
   }
 });
+// Get single equipment by ID
+app.get("/equipment/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    // Validate MongoDB ObjectId
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid equipment ID",
+      });
+    }
+
+    // Find equipment
+    const equipment = await equipmentCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    // Check if equipment exists
+    if (!equipment) {
+      return res.status(404).json({
+        success: false,
+        message: "Equipment not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: equipment,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch equipment",
+    });
+  }
+});
+// add equipment
 app.post("/equipment", async (req, res) => {
   try {
     const {
