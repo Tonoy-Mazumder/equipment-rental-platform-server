@@ -221,7 +221,26 @@ app.post("/bookings", async (req, res) => {
   }
 });
 
+app.get("/bookings/customer/:customerId", async (req, res) => {
+  try {
+    const { customerId } = req.params;
 
+    const bookings = await bookingCollection
+      .find({ customerId })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch customer bookings",
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
