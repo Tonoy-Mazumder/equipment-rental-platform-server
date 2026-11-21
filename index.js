@@ -672,6 +672,97 @@ app.get("/bookings/owner/:ownerId/history", async (req, res) => {
   }
 });
 
+// Get owner earnings
+
+app.get("/earnings/owner/:ownerId", async (req, res) => {
+    try {
+        const { ownerId } = req.params;
+
+        const bookings = await bookingCollection
+            .find({ ownerId })
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+
+        let totalEarnings = 0;
+        let pendingEarnings = 0;
+        let cancelledAmount = 0;
+
+        const completedBookings = bookings.filter(
+            (booking) => booking.status === "completed"
+        );
+
+        const approvedBookings = bookings.filter(
+            (booking) => booking.status === "approved"
+        );
+
+        const cancelledBookings = bookings.filter(
+            (booking) => booking.status === "cancelled"
+        );
+
+        const monthlyEarnings = Array.from(
+            { length: 12 },
+            (_, index) => ({
+                month: new Date(currentYear, index).toLocaleString(
+                    "en-US",
+                    { month: "short" }
+                ),
+                earnings: 0,
+            })
+        );
+
+        let thisMonthEarnings = 0;
+
+        for (const booking of completedBookings) {
+            const amount = Number(booking.totalPrice) || 0;
+            const bookingDate = new Date(booking.endDate);
+
+            totalEarnings += amount;
+
+            if (
+                bookingDate.getMonth() === currentMonth &&
+                bookingDate.getFullYear() === currentYear
+            ) {
+                thisMonthEarnings += amount;
+            }
+
+            if (bookingDate.getFullYear() === currentYear) {
+                monthlyEarnings[bookingDate.getMonth()].earnings += amount;
+            }
+        }
+
+        for (const booking of approvedBookings) {
+            pendingEarnings += Number(booking.totalPrice) || 0;
+        }
+
+        for (const booking of cancelledBookings) {
+            cancelledAmount += Number(booking.totalPrice) || 0;
+        }
+
+        res.json({
+            success: true,
+            data: {
+                totalEarnings,
+                thisMonthEarnings,
+                pendingEarnings,
+                cancelledAmount,
+                completedRentals: completedBookings.length,
+                transactions: completedBookings.length,
+                monthlyEarnings,
+                recentTransactions: bookings.slice(0, 5),
+            },
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch owner earnings",
+        });
+    }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
