@@ -244,6 +244,61 @@ app.patch("/equipment/:id", async (req, res) => {
     }
 });
 
+// Delete equipment by ID (only the owner can delete their equipment)
+app.delete("/equipment/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { ownerId } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid equipment ID",
+            });
+        }
+
+        if (!ownerId) {
+            return res.status(400).json({
+                success: false,
+                message: "Owner ID is required",
+            });
+        }
+
+        const activeBooking = await bookingCollection.findOne({
+            equipmentId: id,
+            status: { $in: ["pending", "approved"] },
+        });
+
+        if (activeBooking) {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot delete equipment with active bookings",
+            });
+        }
+
+        const result = await equipmentCollection.deleteOne({
+            _id: new ObjectId(id),
+            ownerId,
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Equipment not found",
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Equipment deleted successfully",
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete equipment",
+        });
+    }
+});
 
 // add bookings
 app.post("/bookings", async (req, res) => {
@@ -524,6 +579,7 @@ app.patch("/bookings/:id/status", async (req, res) => {
     });
   }
 });
+
 
 
 // Get owner rental history
