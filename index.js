@@ -1,4 +1,3 @@
-
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
@@ -11,9 +10,9 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: "http://localhost:5000",
     credentials: true,
-  })
+  }),
 );
 
 const mongoUrl = process.env.MONGODB_URL;
@@ -32,25 +31,35 @@ export async function connectToMongoDB() {
   return client;
 }
 
-async function startServer() {
-  try {
-    const connectedClient = await connectToMongoDB();
+const connectedClient = await connectToMongoDB();
 
-    const database = connectedClient.db("RentPro");
+const database = connectedClient.db("RentPro");
 
-    console.log("Database:", database.databaseName);
-
-    app.listen(port, () => {
-      console.log(`Server running at http://localhost:${port}`);
-    });
-  } catch (error) {
-    console.error("Server startup failed:", error);
-    process.exit(1);
-  }
-}
+console.log("Database:", database.databaseName);
 
 app.get("/", (req, res) => {
   res.send("RentPro server is running!");
 });
 
-startServer();
+
+app.get("/equipment", async (req, res) => {
+  try {
+    const equipment = await database
+      .collection("equipment")
+      .find()
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      data: equipment,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch equipment",
+    });
+  }
+});
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});
