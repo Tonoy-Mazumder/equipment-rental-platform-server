@@ -341,6 +341,29 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
     });
   }
 });
+
+
+// Get all bookings for a specific owner
+app.get("/bookings/owner/:ownerId", async (req, res) => {
+    try {
+        const { ownerId } = req.params;
+
+        const bookings = await bookingCollection
+            .find({ ownerId })
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        res.status(200).json({
+            success: true,
+            data: bookings,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch owner bookings",
+        });
+    }
+});
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
