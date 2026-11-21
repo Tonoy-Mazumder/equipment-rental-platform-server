@@ -10,7 +10,7 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: "http://localhost:5000",
+    origin: "http://localhost:3000",
     credentials: true,
   }),
 );
@@ -34,20 +34,16 @@ export async function connectToMongoDB() {
 const connectedClient = await connectToMongoDB();
 
 const database = connectedClient.db("RentPro");
-
+const equipmentCollection = database.collection("equipment");
 console.log("Database:", database.databaseName);
 
 app.get("/", (req, res) => {
   res.send("RentPro server is running!");
 });
 
-
 app.get("/equipment", async (req, res) => {
   try {
-    const equipment = await database
-      .collection("equipment")
-      .find()
-      .toArray();
+    const equipment = await equipmentCollection.find().toArray();
 
     res.status(200).json({
       success: true,
@@ -60,6 +56,62 @@ app.get("/equipment", async (req, res) => {
     });
   }
 });
+
+app.post("/equipment", async (req, res) => {
+  try {
+    const {
+      ownerId,
+      name,
+      category,
+      description,
+      pricePerDay,
+      location,
+      images,
+    } = req.body;
+
+    if (
+      !ownerId ||
+      !name ||
+      !category ||
+      !description ||
+      !pricePerDay ||
+      !location
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required fields",
+      });
+    }
+
+    const newEquipment = {
+      ownerId,
+      name,
+      category,
+      description,
+      pricePerDay: Number(pricePerDay),
+      location,
+      images: images || [],
+      status: "available",
+      createdAt: new Date(),
+    };
+
+    const result = await equipmentCollection.insertOne(newEquipment);
+    res.status(201).json({
+      success: true,
+      message: "Equipment added successfully",
+      data: {
+        _id: result.insertedId,
+        ...newEquipment,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to add equipment",
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
