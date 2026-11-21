@@ -241,6 +241,69 @@ app.get("/bookings/customer/:customerId", async (req, res) => {
     });
   }
 });
+
+// Cancel a booking by booking ID
+app.patch("/bookings/:id/cancel", async (req, res) => {
+  try {
+    // Get booking ID from URL params
+    const { id } = req.params;
+
+    // Check if booking ID is valid
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID",
+      });
+    }
+
+    // Find the booking
+    const booking = await bookingCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    // Check if booking exists
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // Only pending or approved bookings can be cancelled
+    if (!["pending", "approved"].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "This booking cannot be cancelled",
+      });
+    }
+
+    // Update booking status to cancelled
+    await bookingCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          status: "cancelled",
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    // Send success response
+    res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully",
+    });
+  } catch (error) {
+    // Log error for debugging
+    console.error("Failed to cancel booking:", error);
+
+    // Send error response
+    res.status(500).json({
+      success: false,
+      message: "Failed to cancel booking",
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
