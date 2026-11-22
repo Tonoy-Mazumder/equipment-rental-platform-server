@@ -175,130 +175,130 @@ app.post("/equipment", async (req, res) => {
 
 // update equipment by id
 app.patch("/equipment/:id", async (req, res) => {
-    try {
-        const { id } = req.params;
-        const {
-            ownerId,
-            name,
-            category,
-            description,
-            pricePerDay,
-            location,
-            images,
-        } = req.body;
+  try {
+    const { id } = req.params;
+    const {
+      ownerId,
+      name,
+      category,
+      description,
+      pricePerDay,
+      location,
+      images,
+    } = req.body;
 
-        if (!ObjectId.isValid(id)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid equipment ID",
-            });
-        }
-
-        if (
-            !ownerId ||
-            !name ||
-            !category ||
-            !description ||
-            !pricePerDay ||
-            !location
-        ) {
-            return res.status(400).json({
-                success: false,
-                message: "Please provide all required fields",
-            });
-        }
-
-        const result = await equipmentCollection.updateOne(
-            {
-                _id: new ObjectId(id),
-                ownerId,
-            },
-            {
-                $set: {
-                    name,
-                    category,
-                    description,
-                    pricePerDay: Number(pricePerDay),
-                    location,
-                    images: images || [],
-                    updatedAt: new Date(),
-                },
-            }
-        );
-
-        if (result.matchedCount === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "Equipment not found",
-            });
-        }
-
-        res.json({
-            success: true,
-            message: "Equipment updated successfully",
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Failed to update equipment",
-        });
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid equipment ID",
+      });
     }
+
+    if (
+      !ownerId ||
+      !name ||
+      !category ||
+      !description ||
+      !pricePerDay ||
+      !location
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required fields",
+      });
+    }
+
+    const result = await equipmentCollection.updateOne(
+      {
+        _id: new ObjectId(id),
+        ownerId,
+      },
+      {
+        $set: {
+          name,
+          category,
+          description,
+          pricePerDay: Number(pricePerDay),
+          location,
+          images: images || [],
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Equipment not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Equipment updated successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update equipment",
+    });
+  }
 });
 
 // Delete equipment by ID (only the owner can delete their equipment)
 app.delete("/equipment/:id", async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { ownerId } = req.body;
+  try {
+    const { id } = req.params;
+    const { ownerId } = req.body;
 
-        if (!ObjectId.isValid(id)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid equipment ID",
-            });
-        }
-
-        if (!ownerId) {
-            return res.status(400).json({
-                success: false,
-                message: "Owner ID is required",
-            });
-        }
-
-        const activeBooking = await bookingCollection.findOne({
-            equipmentId: id,
-            status: { $in: ["pending", "approved"] },
-        });
-
-        if (activeBooking) {
-            return res.status(400).json({
-                success: false,
-                message: "Cannot delete equipment with active bookings",
-            });
-        }
-
-        const result = await equipmentCollection.deleteOne({
-            _id: new ObjectId(id),
-            ownerId,
-        });
-
-        if (result.deletedCount === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "Equipment not found",
-            });
-        }
-
-        res.json({
-            success: true,
-            message: "Equipment deleted successfully",
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Failed to delete equipment",
-        });
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid equipment ID",
+      });
     }
+
+    if (!ownerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Owner ID is required",
+      });
+    }
+
+    const activeBooking = await bookingCollection.findOne({
+      equipmentId: id,
+      status: { $in: ["pending", "approved"] },
+    });
+
+    if (activeBooking) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete equipment with active bookings",
+      });
+    }
+
+    const result = await equipmentCollection.deleteOne({
+      _id: new ObjectId(id),
+      ownerId,
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Equipment not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Equipment deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete equipment",
+    });
+  }
 });
 
 // add bookings
@@ -535,7 +535,6 @@ app.get("/bookings/owner/:ownerId", async (req, res) => {
   }
 });
 
-
 // Approve or Reject Booking
 app.patch("/bookings/:id/status", async (req, res) => {
   try {
@@ -581,85 +580,79 @@ app.patch("/bookings/:id/status", async (req, res) => {
   }
 });
 
-
-
 // Get owner rental history
 app.get("/bookings/owner/:ownerId/history", async (req, res) => {
   try {
     const { ownerId } = req.params;
 
-    const bookings = await bookingCollection.aggregate([
-      {
-        $match: { ownerId },
-      },
-      {
-        $sort: { createdAt: -1 },
-      },
-      {
-        $lookup: {
-          from: "user",
-          let: { customerId: "$customerId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: [
-                    { $toString: "$_id" },
-                    "$$customerId",
-                  ],
+    const bookings = await bookingCollection
+      .aggregate([
+        {
+          $match: { ownerId },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $lookup: {
+            from: "user",
+            let: { customerId: "$customerId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$customerId"],
+                  },
                 },
               },
-            },
-          ],
-          as: "customer",
+            ],
+            as: "customer",
+          },
         },
-      },
-      {
-        $lookup: {
-          from: "equipment",
-          let: { equipmentId: "$equipmentId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: [
-                    { $toString: "$_id" },
-                    "$$equipmentId",
-                  ],
+        {
+          $lookup: {
+            from: "equipment",
+            let: { equipmentId: "$equipmentId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$equipmentId"],
+                  },
                 },
               },
-            },
-          ],
-          as: "equipment",
+            ],
+            as: "equipment",
+          },
         },
-      },
-      {
-        $unwind: {
-          path: "$customer",
-          preserveNullAndEmptyArrays: true,
+        {
+          $unwind: {
+            path: "$customer",
+            preserveNullAndEmptyArrays: true,
+          },
         },
-      },
-      {
-        $unwind: {
-          path: "$equipment",
-          preserveNullAndEmptyArrays: true,
+        {
+          $unwind: {
+            path: "$equipment",
+            preserveNullAndEmptyArrays: true,
+          },
         },
-      },
-      {
-        $project: {
-          equipmentId: 1,
-          customerId: 1,
-          startDate: 1,
-          endDate: 1,
-          totalPrice: 1,
-          status: 1,
-          createdAt: 1,
-          customerName: "$customer.name",
-          customerEmail: "$customer.email",
-          equipmentName: "$equipment.name",
+        {
+          $project: {
+            equipmentId: 1,
+            customerId: 1,
+            startDate: 1,
+            endDate: 1,
+            totalPrice: 1,
+            status: 1,
+            createdAt: 1,
+            customerName: "$customer.name",
+            customerEmail: "$customer.email",
+            equipmentName: "$equipment.name",
+          },
         },
-      },
-    ]).toArray();
+      ])
+      .toArray();
 
     res.json({
       success: true,
@@ -676,94 +669,89 @@ app.get("/bookings/owner/:ownerId/history", async (req, res) => {
 // Get owner earnings
 
 app.get("/earnings/owner/:ownerId", async (req, res) => {
-    try {
-        const { ownerId } = req.params;
+  try {
+    const { ownerId } = req.params;
 
-        const bookings = await bookingCollection
-            .find({ ownerId })
-            .sort({ createdAt: -1 })
-            .toArray();
+    const bookings = await bookingCollection
+      .find({ ownerId })
+      .sort({ createdAt: -1 })
+      .toArray();
 
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
 
-        let totalEarnings = 0;
-        let pendingEarnings = 0;
-        let cancelledAmount = 0;
+    let totalEarnings = 0;
+    let pendingEarnings = 0;
+    let cancelledAmount = 0;
 
-        const completedBookings = bookings.filter(
-            (booking) => booking.status === "completed"
-        );
+    const completedBookings = bookings.filter(
+      (booking) => booking.status === "completed",
+    );
 
-        const approvedBookings = bookings.filter(
-            (booking) => booking.status === "approved"
-        );
+    const approvedBookings = bookings.filter(
+      (booking) => booking.status === "approved",
+    );
 
-        const cancelledBookings = bookings.filter(
-            (booking) => booking.status === "cancelled"
-        );
+    const cancelledBookings = bookings.filter(
+      (booking) => booking.status === "cancelled",
+    );
 
-        const monthlyEarnings = Array.from(
-            { length: 12 },
-            (_, index) => ({
-                month: new Date(currentYear, index).toLocaleString(
-                    "en-US",
-                    { month: "short" }
-                ),
-                earnings: 0,
-            })
-        );
+    const monthlyEarnings = Array.from({ length: 12 }, (_, index) => ({
+      month: new Date(currentYear, index).toLocaleString("en-US", {
+        month: "short",
+      }),
+      earnings: 0,
+    }));
 
-        let thisMonthEarnings = 0;
+    let thisMonthEarnings = 0;
 
-        for (const booking of completedBookings) {
-            const amount = Number(booking.totalPrice) || 0;
-            const bookingDate = new Date(booking.endDate);
+    for (const booking of completedBookings) {
+      const amount = Number(booking.totalPrice) || 0;
+      const bookingDate = new Date(booking.endDate);
 
-            totalEarnings += amount;
+      totalEarnings += amount;
 
-            if (
-                bookingDate.getMonth() === currentMonth &&
-                bookingDate.getFullYear() === currentYear
-            ) {
-                thisMonthEarnings += amount;
-            }
+      if (
+        bookingDate.getMonth() === currentMonth &&
+        bookingDate.getFullYear() === currentYear
+      ) {
+        thisMonthEarnings += amount;
+      }
 
-            if (bookingDate.getFullYear() === currentYear) {
-                monthlyEarnings[bookingDate.getMonth()].earnings += amount;
-            }
-        }
-
-        for (const booking of approvedBookings) {
-            pendingEarnings += Number(booking.totalPrice) || 0;
-        }
-
-        for (const booking of cancelledBookings) {
-            cancelledAmount += Number(booking.totalPrice) || 0;
-        }
-
-        res.json({
-            success: true,
-            data: {
-                totalEarnings,
-                thisMonthEarnings,
-                pendingEarnings,
-                cancelledAmount,
-                completedRentals: completedBookings.length,
-                transactions: completedBookings.length,
-                monthlyEarnings,
-                recentTransactions: bookings.slice(0, 5),
-            },
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch owner earnings",
-        });
+      if (bookingDate.getFullYear() === currentYear) {
+        monthlyEarnings[bookingDate.getMonth()].earnings += amount;
+      }
     }
-});
 
+    for (const booking of approvedBookings) {
+      pendingEarnings += Number(booking.totalPrice) || 0;
+    }
+
+    for (const booking of cancelledBookings) {
+      cancelledAmount += Number(booking.totalPrice) || 0;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalEarnings,
+        thisMonthEarnings,
+        pendingEarnings,
+        cancelledAmount,
+        completedRentals: completedBookings.length,
+        transactions: completedBookings.length,
+        monthlyEarnings,
+        recentTransactions: bookings.slice(0, 5),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch owner earnings",
+    });
+  }
+});
 
 // Get all users for Admin
 app.get("/admin/users", async (req, res) => {
@@ -797,26 +785,153 @@ app.get("/admin/users", async (req, res) => {
 
 // Get all equipment for Admin
 app.get("/admin/equipment", async (req, res) => {
-    try {
-        const equipment = await equipmentCollection
-            .find({})
-            .sort({ createdAt: -1 })
-            .toArray();
+  try {
+    const equipment = await equipmentCollection
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
 
-        res.status(200).json({
-            success: true,
-            totalEquipment: equipment.length,
-            data: equipment,
-        });
-    } catch (error) {
-        console.error("Failed to fetch equipment:", error);
+    res.status(200).json({
+      success: true,
+      totalEquipment: equipment.length,
+      data: equipment,
+    });
+  } catch (error) {
+    console.error("Failed to fetch equipment:", error);
 
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch equipment",
-        });
-    }
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch equipment",
+    });
+  }
 });
+
+// Get all rentals for Admin
+app.get("/admin/rentals", async (req, res) => {
+  try {
+    const rentals = await bookingCollection
+      .aggregate([
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $lookup: {
+            from: "user",
+            let: { customerId: "$customerId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$customerId"],
+                  },
+                },
+              },
+              {
+                $project: {
+                  name: 1,
+                  email: 1,
+                },
+              },
+            ],
+            as: "customer",
+          },
+        },
+        {
+          $lookup: {
+            from: "user",
+            let: { ownerId: "$ownerId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$ownerId"],
+                  },
+                },
+              },
+              {
+                $project: {
+                  name: 1,
+                  email: 1,
+                },
+              },
+            ],
+            as: "owner",
+          },
+        },
+        {
+          $lookup: {
+            from: "equipment",
+            let: { equipmentId: "$equipmentId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$equipmentId"],
+                  },
+                },
+              },
+              {
+                $project: {
+                  name: 1,
+                  category: 1,
+                  location: 1,
+                },
+              },
+            ],
+            as: "equipment",
+          },
+        },
+        {
+          $project: {
+            equipmentId: 1,
+            customerId: 1,
+            ownerId: 1,
+            startDate: 1,
+            endDate: 1,
+            totalPrice: 1,
+            status: 1,
+            createdAt: 1,
+            customerName: {
+              $ifNull: [
+                { $arrayElemAt: ["$customer.name", 0] },
+                "Unknown Customer",
+              ],
+            },
+            customerEmail: {
+              $arrayElemAt: ["$customer.email", 0],
+            },
+            ownerName: {
+              $ifNull: [{ $arrayElemAt: ["$owner.name", 0] }, "Unknown Owner"],
+            },
+            ownerEmail: {
+              $arrayElemAt: ["$owner.email", 0],
+            },
+            equipmentName: {
+              $ifNull: [
+                { $arrayElemAt: ["$equipment.name", 0] },
+                "Unknown Equipment",
+              ],
+            },
+          },
+        },
+      ])
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      totalRentals: rentals.length,
+      data: rentals,
+    });
+  } catch (error) {
+    console.error("Failed to fetch rentals:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch rentals",
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
