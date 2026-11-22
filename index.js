@@ -237,8 +237,7 @@ app.get("/", (req, res) => {
 app.get("/equipment", async (req, res) => {
   try {
     const search = req.query.search || "";
-    const category = req.query.category;
-
+   
     const filter = {
       approvalStatus: "approved",
     };
@@ -277,9 +276,17 @@ app.get("/equipment", async (req, res) => {
       };
     }
 
-    if (category) {
-      filter.category = category;
-    }
+   const categories = Array.isArray(req.query.category)
+  ? req.query.category
+  : req.query.category
+    ? [req.query.category]
+    : [];
+
+if (categories.length > 0) {
+  filter.category = {
+    $in: categories,
+  };
+}
 
     const equipment = await equipmentCollection.find(filter).toArray();
 
