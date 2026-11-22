@@ -244,6 +244,14 @@ app.get("/equipment", async (req, res) => {
       approvalStatus: "approved",
     };
 
+    const location = req.query.location;
+
+if (location) {
+  filter.location = {
+    $regex: location,
+    $options: "i",
+  };
+}
     if (search) {
       filter.name = {
         $regex: search,
