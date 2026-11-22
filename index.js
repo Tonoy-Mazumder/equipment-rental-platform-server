@@ -788,12 +788,11 @@ app.patch(
 
 // Get owner earnings
 
-app.get("/earnings/owner/:ownerId", async (req, res) => {
-  try {
-    const { ownerId } = req.params;
 
+app.get("/earnings/owner", verifyToken, verifyOwner, async (req, res) => {
+  try {
     const bookings = await bookingCollection
-      .find({ ownerId })
+      .find({ ownerId: req.user.id })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -852,7 +851,7 @@ app.get("/earnings/owner/:ownerId", async (req, res) => {
       cancelledAmount += Number(booking.totalPrice) || 0;
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: {
         totalEarnings,
@@ -866,12 +865,15 @@ app.get("/earnings/owner/:ownerId", async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Failed to fetch owner earnings:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch owner earnings",
     });
   }
 });
+
 
 // Get all users for Admin
 app.get("/admin/users", verifyToken, verifyAdmin, async (req, res) => {
