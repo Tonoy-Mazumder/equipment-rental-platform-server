@@ -998,6 +998,61 @@ app.patch("/admin/users/:id/role", async (req, res) => {
     }
 });
 
+
+// Update equipment approval status by Admin
+app.patch("/admin/equipment/:id/approval", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { approvalStatus } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid equipment ID",
+            });
+            return;
+        }
+
+        if (!["approved", "rejected"].includes(approvalStatus)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid approval status",
+            });
+            return;
+        }
+
+        const result = await equipmentCollection.updateOne(
+            { _id: new ObjectId(id) },
+            {
+                $set: {
+                    approvalStatus,
+                    updatedAt: new Date(),
+                },
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            res.status(404).json({
+                success: false,
+                message: "Equipment not found",
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Equipment ${approvalStatus} successfully`,
+        });
+    } catch (error) {
+        console.error("Failed to update equipment approval:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to update equipment approval",
+        });
+    }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
