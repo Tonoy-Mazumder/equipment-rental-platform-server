@@ -1509,6 +1509,85 @@ app.patch(
   },
 );
 
+// Update equipment by Admin
+app.patch(
+  "/admin/equipment/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        name,
+        category,
+        description,
+        pricePerDay,
+        location,
+        images,
+      } = req.body;
+
+      if (!ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid equipment ID",
+        });
+        return;
+      }
+
+      if (
+        !name?.trim() ||
+        !category?.trim() ||
+        !description?.trim() ||
+        !location?.trim() ||
+        !Array.isArray(images) ||
+        typeof pricePerDay !== "number" ||
+        pricePerDay <= 0
+      ) {
+        res.status(400).json({
+          success: false,
+          message: "Please provide valid equipment information",
+        });
+        return;
+      }
+
+      const result = await equipmentCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            name: name.trim(),
+            category: category.trim(),
+            description: description.trim(),
+            pricePerDay,
+            location: location.trim(),
+            images,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        res.status(404).json({
+          success: false,
+          message: "Equipment not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Equipment updated successfully",
+      });
+    } catch (error) {
+      console.error("Failed to update equipment:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to update equipment",
+      });
+    }
+  }
+);
+
 // Update equipment approval status by Admin
 app.patch(
   "/admin/equipment/:id/approval",
@@ -1567,6 +1646,7 @@ app.patch(
     }
   },
 );
+
 
 // Admin Equipment Delete API
 app.delete(
