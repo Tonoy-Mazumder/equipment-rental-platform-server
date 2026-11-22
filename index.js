@@ -206,10 +206,10 @@ app.get("/equipment/owner/:ownerId", async (req, res) => {
   }
 });
 // add equipment
-app.post("/equipment", async (req, res) => {
+
+app.post("/equipment", verifyToken, verifyOwner, async (req, res) => {
   try {
     const {
-      ownerId,
       name,
       category,
       description,
@@ -219,7 +219,6 @@ app.post("/equipment", async (req, res) => {
     } = req.body;
 
     if (
-      !ownerId ||
       !name ||
       !category ||
       !description ||
@@ -233,7 +232,7 @@ app.post("/equipment", async (req, res) => {
     }
 
     const newEquipment = {
-      ownerId,
+      ownerId: req.user.id,
       name,
       category,
       description,
@@ -241,10 +240,12 @@ app.post("/equipment", async (req, res) => {
       location,
       images: images || [],
       status: "available",
+      approvalStatus: "pending",
       createdAt: new Date(),
     };
 
     const result = await equipmentCollection.insertOne(newEquipment);
+
     res.status(201).json({
       success: true,
       message: "Equipment added successfully",
@@ -254,12 +255,15 @@ app.post("/equipment", async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Failed to add equipment:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to add equipment",
     });
   }
 });
+
 
 // update equipment by id
 app.patch("/equipment/:id", async (req, res) => {
