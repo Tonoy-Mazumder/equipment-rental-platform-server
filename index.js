@@ -694,68 +694,58 @@ app.get("/bookings/:id", async (req, res) => {
     });
   }
 });
-// Cancel a booking by booking ID
-app.patch("/bookings/:id/cancel", async (req, res) => {
-  try {
-    // Get booking ID from URL params
-    const { id } = req.params;
 
-    // Check if booking ID is valid
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid booking ID",
-      });
-    }
+// Cancel booking (Only booking owner/customer can cancel)
+app.patch(
+  "/bookings/:id/cancel",
+  verifyToken,
+  verifyCustomer,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    // Find the booking
-    const booking = await bookingCollection.findOne({
-      _id: new ObjectId(id),
-    });
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid booking ID",
+        });
+      }
 
-    // Check if booking exists
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found",
-      });
-    }
-
-    // Only pending or approved bookings can be cancelled
-    if (!["pending", "approved"].includes(booking.status)) {
-      return res.status(400).json({
-        success: false,
-        message: "This booking cannot be cancelled",
-      });
-    }
-
-    // Update booking status to cancelled
-    await bookingCollection.updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          status: "cancelled",
-          updatedAt: new Date(),
+      const result = await bookingCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+          customerId: req.user.id,
+          status: { $in: ["pending", "approved"] },
         },
-      },
-    );
+        {
+          $set: {
+            status: "cancelled",
+            updatedAt: new Date(),
+          },
+        },
+      );
 
-    // Send success response
-    res.status(200).json({
-      success: true,
-      message: "Booking cancelled successfully",
-    });
-  } catch (error) {
-    // Log error for debugging
-    console.error("Failed to cancel booking:", error);
+      if (result.matchedCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Booking not found or cannot be cancelled",
+        });
+      }
 
-    // Send error response
-    res.status(500).json({
-      success: false,
-      message: "Failed to cancel booking",
-    });
-  }
-});
+      res.status(200).json({
+        success: true,
+        message: "Booking cancelled successfully",
+      });
+    } catch (error) {
+      console.error("Failed to cancel booking:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to cancel booking",
+      });
+    }
+  },
+);
 
 // Get all bookings for logged-in owner
 
