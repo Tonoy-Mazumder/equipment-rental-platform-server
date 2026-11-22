@@ -234,10 +234,24 @@ app.get("/", (req, res) => {
 
 // Get all equipment
 
+
 app.get("/equipment", async (req, res) => {
   try {
+    const search = req.query.search || "";
+
+    const filter = {
+      approvalStatus: "approved",
+    };
+
+    if (search) {
+      filter.name = {
+        $regex: search,
+        $options: "i",
+      };
+    }
+
     const equipment = await equipmentCollection
-      .find({ approvalStatus: "approved" })
+      .find(filter)
       .toArray();
 
     res.status(200).json({
@@ -253,6 +267,7 @@ app.get("/equipment", async (req, res) => {
     });
   }
 });
+
 
 // Get equipment by logged-in owner
 app.get("/equipment/owner", verifyToken, verifyOwner, async (req, res) => {
