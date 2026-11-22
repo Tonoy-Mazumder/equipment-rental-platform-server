@@ -340,10 +340,10 @@ app.patch("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
 
 
 // Delete equipment by ID (only the owner can delete their equipment)
-app.delete("/equipment/:id", async (req, res) => {
+
+app.delete("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
   try {
     const { id } = req.params;
-    const { ownerId } = req.body;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -352,10 +352,15 @@ app.delete("/equipment/:id", async (req, res) => {
       });
     }
 
-    if (!ownerId) {
-      return res.status(400).json({
+    const equipment = await equipmentCollection.findOne({
+      _id: new ObjectId(id),
+      ownerId: req.user.id,
+    });
+
+    if (!equipment) {
+      return res.status(404).json({
         success: false,
-        message: "Owner ID is required",
+        message: "Equipment not found",
       });
     }
 
@@ -371,29 +376,25 @@ app.delete("/equipment/:id", async (req, res) => {
       });
     }
 
-    const result = await equipmentCollection.deleteOne({
+    await equipmentCollection.deleteOne({
       _id: new ObjectId(id),
-      ownerId,
+      ownerId: req.user.id,
     });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Equipment not found",
-      });
-    }
 
     res.json({
       success: true,
       message: "Equipment deleted successfully",
     });
   } catch (error) {
+    console.error("Failed to delete equipment:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to delete equipment",
     });
   }
 });
+
 
 // add bookings
 app.post("/bookings", async (req, res) => {
