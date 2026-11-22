@@ -932,6 +932,72 @@ app.get("/admin/rentals", async (req, res) => {
   }
 });
 
+
+// Update user role by Admin
+app.patch("/admin/users/:id/role", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid user ID",
+            });
+            return;
+        }
+
+        if (!["customer", "owner"].includes(role)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid role. Only customer and owner are allowed.",
+            });
+            return;
+        }
+
+        const user = await userCollection.findOne({
+            _id: new ObjectId(id),
+        });
+
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+            return;
+        }
+
+        if (user.role === "admin") {
+            res.status(403).json({
+                success: false,
+                message: "Admin role cannot be changed",
+            });
+            return;
+        }
+
+        await userCollection.updateOne(
+            { _id: new ObjectId(id) },
+            {
+                $set: {
+                    role,
+                },
+            }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "User role updated successfully",
+        });
+    } catch (error) {
+        console.error("Failed to update user role:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to update user role",
+        });
+    }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
