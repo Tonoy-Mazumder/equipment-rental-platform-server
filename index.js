@@ -37,6 +37,7 @@ const database = connectedClient.db("RentPro");
 const equipmentCollection = database.collection("equipment");
 const bookingCollection = database.collection("bookings");
 const userCollection = database.collection("user");
+const favoritesCollection = database.collection("favorites");
 console.log("Database:", database.databaseName);
 const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL;
 
@@ -455,32 +456,26 @@ app.post("/bookings", verifyToken, verifyCustomer, async (req, res) => {
   }
 });
 
+app.get("/bookings/customer", verifyToken, verifyCustomer, async (req, res) => {
+  try {
+    const bookings = await bookingCollection
+      .find({ customerId: req.user.id })
+      .sort({ createdAt: -1 })
+      .toArray();
 
-app.get(
-  "/bookings/customer",
-  verifyToken,
-  verifyCustomer,
-  async (req, res) => {
-    try {
-      const bookings = await bookingCollection
-        .find({ customerId: req.user.id })
-        .sort({ createdAt: -1 })
-        .toArray();
+    res.status(200).json({
+      success: true,
+      data: bookings,
+    });
+  } catch (error) {
+    console.error("Failed to fetch customer bookings:", error);
 
-      res.status(200).json({
-        success: true,
-        data: bookings,
-      });
-    } catch (error) {
-      console.error("Failed to fetch customer bookings:", error);
-
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch customer bookings",
-      });
-    }
-  },
-);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch customer bookings",
+    });
+  }
+});
 
 app.get("/bookings/owner", verifyToken, verifyOwner, async (req, res) => {
   try {
@@ -658,7 +653,6 @@ app.get(
   },
 );
 
-
 // Get single booking (Customer, Owner, or Admin)
 
 app.get("/bookings/:id", verifyToken, async (req, res) => {
@@ -823,6 +817,156 @@ app.patch(
   },
 );
 
+// Add equipment to favorites
+app.post("/favorites", verifyToken, verifyCustomer, async (req, res) => {
+  try {
+    const { equipmentId } = req.body;
+
+    if (!equipmentId || !ObjectId.isValid(equipmentId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid equipment ID is required",
+      });
+    }
+
+    // Check equipment exists and is approved
+    const equipment = await equipmentCollection.findOne({
+      _id: new ObjectId(equipmentId),
+      approvalStatus: "approved",
+    });
+
+    if (!equipment) {
+      return res.status(404).json({
+        success: false,
+        message: "Equipment not found",
+      });
+    }
+
+    // Check if already favorited
+    const existingFavorite = await favoritesCollection.findOne({
+      customerId: req.user.id,
+      equipmentId,
+    });
+
+    if (existingFavorite) {
+      return res.status(409).json({
+        success: false,
+        message: "Equipment is already in favorites",
+      });
+    }
+
+    await favoritesCollection.insertOne({
+      customerId: req.user.id,
+      equipmentId,
+      createdAt: new Date(),
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Equipment added to favorites",
+    });
+  } catch (error) {
+    console.error("Failed to add favorite:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to add favorite",
+    });
+  }
+});
+
+// Get customer favorites
+app.get("/favorites", verifyToken, verifyCustomer, async (req, res) => {
+  try {
+    const favorites = await favoritesCollection
+      .aggregate([
+        {
+          $match: {
+            customerId: req.user.id,
+          },
+        },
+        {
+          $addFields: {
+            equipmentObjectId: {
+              $toObjectId: "$equipmentId",
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "equipment",
+            localField: "equipmentObjectId",
+            foreignField: "_id",
+            as: "equipment",
+          },
+        },
+        {
+          $unwind: "$equipment",
+        },
+        {
+          $project: {
+            equipmentObjectId: 0,
+          },
+        },
+      ])
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      data: favorites,
+    });
+  } catch (error) {
+    console.error("Failed to fetch favorites:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch favorites",
+    });
+  }
+});
+
+// Remove equipment from favorites
+app.delete(
+  "/favorites/:equipmentId",
+  verifyToken,
+  verifyCustomer,
+  async (req, res) => {
+    try {
+      const { equipmentId } = req.params;
+
+      if (!ObjectId.isValid(equipmentId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid equipment ID",
+        });
+      }
+
+      const result = await favoritesCollection.deleteOne({
+        customerId: req.user.id,
+        equipmentId,
+      });
+
+      if (result.deletedCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Favorite not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Favorite removed successfully",
+      });
+    } catch (error) {
+      console.error("Failed to remove favorite:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to remove favorite",
+      });
+    }
+  },
+);
 // Get owner earnings
 
 app.get("/earnings/owner", verifyToken, verifyOwner, async (req, res) => {
