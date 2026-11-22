@@ -1053,6 +1053,64 @@ app.patch("/admin/equipment/:id/approval", async (req, res) => {
     }
 });
 
+ // Admin Equipment Delete API
+app.delete("/admin/equipment/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid equipment ID",
+            });
+            return;
+        }
+
+        const equipmentId = new ObjectId(id);
+
+        const equipment = await equipmentCollection.findOne({
+            _id: equipmentId,
+        });
+
+        if (!equipment) {
+            res.status(404).json({
+                success: false,
+                message: "Equipment not found",
+            });
+            return;
+        }
+
+        const activeBooking = await bookingCollection.findOne({
+            equipmentId: id,
+            status: { $in: ["pending", "approved"] },
+        });
+
+        if (activeBooking) {
+            res.status(400).json({
+                success: false,
+                message: "Cannot delete equipment with active bookings",
+            });
+            return;
+        }
+
+        await equipmentCollection.deleteOne({
+            _id: equipmentId,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Equipment deleted successfully",
+        });
+    } catch (error) {
+        console.error("Failed to delete equipment:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete equipment",
+        });
+    }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
