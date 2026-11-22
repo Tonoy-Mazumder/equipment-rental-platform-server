@@ -446,7 +446,6 @@ app.get("/bookings/customer/:customerId", async (req, res) => {
 });
 
 app.get("/bookings/owner", verifyToken, verifyOwner, async (req, res) => {
-
   try {
     const bookings = await bookingCollection
       .aggregate([
@@ -509,7 +508,6 @@ app.get("/bookings/owner", verifyToken, verifyOwner, async (req, res) => {
   }
 });
 
-
 // Get single booking by ID
 app.get("/bookings/:id", async (req, res) => {
   try {
@@ -549,7 +547,6 @@ app.get("/bookings/:id", async (req, res) => {
 });
 // Cancel a booking by booking ID
 app.patch("/bookings/:id/cancel", async (req, res) => {
-  
   try {
     // Get booking ID from URL params
     const { id } = req.params;
@@ -613,51 +610,66 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
 
 // Get all bookings for logged-in owner
 
-
 // Approve or Reject Booking
-app.patch("/bookings/:id/status", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
 
-    if (!["approved", "rejected"].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid booking status",
-      });
-    }
+app.patch(
+  "/bookings/:id/status",
+  verifyToken,
+  verifyOwner,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
 
-    const result = await bookingCollection.updateOne(
-      {
-        _id: new ObjectId(id),
-        status: "pending",
-      },
-      {
-        $set: {
-          status,
-          updatedAt: new Date(),
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid booking ID",
+        });
+      }
+
+      if (!["approved", "rejected"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid booking status",
+        });
+      }
+
+      const result = await bookingCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+          ownerId: req.user.id,
+          status: "pending",
         },
-      },
-    );
+        {
+          $set: {
+            status,
+            updatedAt: new Date(),
+          },
+        },
+      );
 
-    if (result.matchedCount === 0) {
-      return res.status(404).json({
+      if (result.matchedCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Pending booking not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Booking ${status} successfully`,
+      });
+    } catch (error) {
+      console.error("Failed to update booking status:", error);
+
+      res.status(500).json({
         success: false,
-        message: "Pending booking not found",
+        message: "Failed to update booking status",
       });
     }
-
-    res.json({
-      success: true,
-      message: `Booking ${status} successfully`,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update booking status",
-    });
-  }
-});
+  },
+);
 
 // Get owner rental history
 app.get("/bookings/owner/:ownerId/history", async (req, res) => {
