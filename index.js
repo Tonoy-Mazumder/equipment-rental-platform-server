@@ -266,11 +266,11 @@ app.post("/equipment", verifyToken, verifyOwner, async (req, res) => {
 
 
 // update equipment by id
-app.patch("/equipment/:id", async (req, res) => {
+
+app.patch("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      ownerId,
       name,
       category,
       description,
@@ -287,7 +287,6 @@ app.patch("/equipment/:id", async (req, res) => {
     }
 
     if (
-      !ownerId ||
       !name ||
       !category ||
       !description ||
@@ -303,7 +302,7 @@ app.patch("/equipment/:id", async (req, res) => {
     const result = await equipmentCollection.updateOne(
       {
         _id: new ObjectId(id),
-        ownerId,
+        ownerId: req.user.id,
       },
       {
         $set: {
@@ -315,7 +314,7 @@ app.patch("/equipment/:id", async (req, res) => {
           images: images || [],
           updatedAt: new Date(),
         },
-      },
+      }
     );
 
     if (result.matchedCount === 0) {
@@ -330,12 +329,15 @@ app.patch("/equipment/:id", async (req, res) => {
       message: "Equipment updated successfully",
     });
   } catch (error) {
+    console.error("Failed to update equipment:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to update equipment",
     });
   }
 });
+
 
 // Delete equipment by ID (only the owner can delete their equipment)
 app.delete("/equipment/:id", async (req, res) => {
