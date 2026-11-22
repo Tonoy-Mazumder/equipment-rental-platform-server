@@ -3,7 +3,9 @@ import "dotenv/config";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import { jwtVerify, createRemoteJWKSet } from "jose";
+import Stripe from "stripe";
 const app = express();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 app.use(express.json());
@@ -38,6 +40,7 @@ const equipmentCollection = database.collection("equipment");
 const bookingCollection = database.collection("bookings");
 const userCollection = database.collection("user");
 const favoritesCollection = database.collection("favorites");
+const paymentsCollection = database.collection("payments");
 console.log("Database:", database.databaseName);
 const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL;
 
@@ -456,6 +459,109 @@ app.post("/bookings", verifyToken, verifyCustomer, async (req, res) => {
   }
 });
 
+app.post(
+  "/create-checkout-session",
+  verifyToken,
+  verifyCustomer,
+  async (req, res) => {
+    try {
+      const { equipmentId, startDate, endDate } = req.body;
+
+      if (!equipmentId || !startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Please provide all required fields",
+        });
+      }
+
+      if (!ObjectId.isValid(equipmentId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid equipment ID",
+        });
+      }
+
+      const equipment = await equipmentCollection.findOne({
+        _id: new ObjectId(equipmentId),
+        approvalStatus: "approved",
+      });
+
+      if (!equipment) {
+        return res.status(404).json({
+          success: false,
+          message: "Equipment not found or not approved",
+        });
+      }
+
+      const bookingStart = new Date(startDate);
+      const bookingEnd = new Date(endDate);
+
+      if (
+        isNaN(bookingStart.getTime()) ||
+        isNaN(bookingEnd.getTime()) ||
+        bookingEnd <= bookingStart
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid booking dates",
+        });
+      }
+
+      const days = Math.ceil(
+        (bookingEnd - bookingStart) / (1000 * 60 * 60 * 24),
+      );
+
+      const totalPrice = days * Number(equipment.pricePerDay);
+
+      if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid equipment price",
+        });
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        mode: "payment",
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: equipment.name,
+              },
+              unit_amount: Math.round(totalPrice * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          equipmentId,
+          customerId: req.user.id,
+          ownerId: equipment.ownerId,
+          startDate: bookingStart.toISOString(),
+          endDate: bookingEnd.toISOString(),
+          totalPrice: String(totalPrice),
+        },
+        success_url:
+          "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}",
+        cancel_url: "http://localhost:3000/payment/cancel",
+      });
+
+      res.status(200).json({
+        success: true,
+        checkoutUrl: session.url,
+      });
+    } catch (error) {
+      console.error("Checkout session error:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to create checkout session",
+      });
+    }
+  },
+);
 app.get("/bookings/customer", verifyToken, verifyCustomer, async (req, res) => {
   try {
     const bookings = await bookingCollection
