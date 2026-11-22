@@ -36,6 +36,7 @@ const connectedClient = await connectToMongoDB();
 const database = connectedClient.db("RentPro");
 const equipmentCollection = database.collection("equipment");
 const bookingCollection = database.collection("bookings");
+const userCollection = database.collection("user");
 console.log("Database:", database.databaseName);
 
 app.get("/", (req, res) => {
@@ -761,6 +762,37 @@ app.get("/earnings/owner/:ownerId", async (req, res) => {
             message: "Failed to fetch owner earnings",
         });
     }
+});
+
+
+// Get all users for Admin
+app.get("/admin/users", async (req, res) => {
+  try {
+    const users = await userCollection
+      .find({})
+      .project({
+        name: 1,
+        email: 1,
+        role: 1,
+        image: 1,
+        createdAt: 1,
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      totalUsers: users.length,
+      data: users,
+    });
+  } catch (error) {
+    console.error("Failed to fetch users:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+    });
+  }
 });
 
 app.listen(port, () => {
