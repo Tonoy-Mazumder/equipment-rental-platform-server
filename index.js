@@ -171,6 +171,7 @@ app.get("/equipment/owner", verifyToken, verifyOwner, async (req, res) => {
 });
 
 // Get single equipment by ID
+
 app.get("/equipment/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -444,6 +445,71 @@ app.get("/bookings/customer/:customerId", async (req, res) => {
   }
 });
 
+app.get("/bookings/owner", verifyToken, verifyOwner, async (req, res) => {
+
+  try {
+    const bookings = await bookingCollection
+      .aggregate([
+        {
+          $match: { ownerId: req.user.id },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $lookup: {
+            from: "user",
+            let: { customerId: "$customerId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$customerId"],
+                  },
+                },
+              },
+            ],
+            as: "customer",
+          },
+        },
+        {
+          $unwind: {
+            path: "$customer",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            equipmentId: 1,
+            customerId: 1,
+            ownerId: 1,
+            startDate: 1,
+            endDate: 1,
+            totalPrice: 1,
+            status: 1,
+            createdAt: 1,
+            customerName: "$customer.name",
+            customerEmail: "$customer.email",
+          },
+        },
+      ])
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+    });
+  } catch (error) {
+    console.error("Failed to fetch owner bookings:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch owner bookings",
+    });
+  }
+});
+
+
 // Get single booking by ID
 app.get("/bookings/:id", async (req, res) => {
   try {
@@ -483,6 +549,7 @@ app.get("/bookings/:id", async (req, res) => {
 });
 // Cancel a booking by booking ID
 app.patch("/bookings/:id/cancel", async (req, res) => {
+  
   try {
     // Get booking ID from URL params
     const { id } = req.params;
@@ -544,69 +611,8 @@ app.patch("/bookings/:id/cancel", async (req, res) => {
   }
 });
 
-// Get all bookings for a specific owner
-app.get("/bookings/owner/:ownerId", async (req, res) => {
-  try {
-    const { ownerId } = req.params;
+// Get all bookings for logged-in owner
 
-    const bookings = await bookingCollection
-      .aggregate([
-        {
-          $match: { ownerId },
-        },
-        {
-          $sort: { createdAt: -1 },
-        },
-        {
-          $lookup: {
-            from: "user",
-            let: { customerId: "$customerId" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $eq: [{ $toString: "$_id" }, "$$customerId"],
-                  },
-                },
-              },
-            ],
-            as: "customer",
-          },
-        },
-        {
-          $unwind: {
-            path: "$customer",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $project: {
-            equipmentId: 1,
-            customerId: 1,
-            ownerId: 1,
-            startDate: 1,
-            endDate: 1,
-            totalPrice: 1,
-            status: 1,
-            createdAt: 1,
-            customerName: "$customer.name",
-            customerEmail: "$customer.email",
-          },
-        },
-      ])
-      .toArray();
-
-    res.json({
-      success: true,
-      data: bookings,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch owner bookings",
-    });
-  }
-});
 
 // Approve or Reject Booking
 app.patch("/bookings/:id/status", async (req, res) => {
