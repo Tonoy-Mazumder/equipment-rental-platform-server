@@ -1631,6 +1631,95 @@ app.delete(
   },
 );
 
+
+// Admin Analytics
+app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    // User statistics
+    const totalUsers = await userCollection.countDocuments();
+    const totalCustomers = await userCollection.countDocuments({
+      role: "customer",
+    });
+    const totalOwners = await userCollection.countDocuments({
+      role: "owner",
+    });
+    const totalAdmins = await userCollection.countDocuments({
+      role: "admin",
+    });
+
+    // Equipment statistics
+    const totalEquipment = await equipmentCollection.countDocuments();
+    const pendingEquipment = await equipmentCollection.countDocuments({
+      approvalStatus: "pending",
+    });
+    const approvedEquipment = await equipmentCollection.countDocuments({
+      approvalStatus: "approved",
+    });
+    const rejectedEquipment = await equipmentCollection.countDocuments({
+      approvalStatus: "rejected",
+    });
+
+    // Rental statistics
+    const totalRentals = await bookingCollection.countDocuments();
+    const pendingRentals = await bookingCollection.countDocuments({
+      status: "pending",
+    });
+    const approvedRentals = await bookingCollection.countDocuments({
+      status: "approved",
+    });
+    const cancelledRentals = await bookingCollection.countDocuments({
+      status: "cancelled",
+    });
+
+    // Revenue from successful payments
+    const revenueResult = await paymentsCollection
+      .aggregate([
+        { $match: { status: "paid" } },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: "$amount" },
+          },
+        },
+      ])
+      .toArray();
+
+    const totalRevenue = revenueResult[0]?.totalRevenue || 0;
+
+    res.status(200).send({
+      success: true,
+      data: {
+        users: {
+          total: totalUsers,
+          customers: totalCustomers,
+          owners: totalOwners,
+          admins: totalAdmins,
+        },
+        equipment: {
+          total: totalEquipment,
+          pending: pendingEquipment,
+          approved: approvedEquipment,
+          rejected: rejectedEquipment,
+        },
+        rentals: {
+          total: totalRentals,
+          pending: pendingRentals,
+          approved: approvedRentals,
+          cancelled: cancelledRentals,
+        },
+        totalRevenue,
+      },
+    });
+  } catch (error) {
+    console.error("Admin analytics error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Failed to load admin analytics",
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
