@@ -234,7 +234,6 @@ app.get("/", (req, res) => {
 
 // Get all equipment
 
-
 app.get("/equipment", async (req, res) => {
   try {
     const search = req.query.search || "";
@@ -246,12 +245,31 @@ app.get("/equipment", async (req, res) => {
 
     const location = req.query.location;
 
-if (location) {
-  filter.location = {
-    $regex: location,
-    $options: "i",
-  };
-}
+    if (location) {
+      filter.location = {
+        $regex: location,
+        $options: "i",
+      };
+    }
+    const status = req.query.status;
+
+    if (status) {
+      filter.status = status;
+    }
+    const minPrice = Number(req.query.minPrice);
+    const maxPrice = Number(req.query.maxPrice);
+
+    if (req.query.minPrice || req.query.maxPrice) {
+      filter.pricePerDay = {};
+
+      if (req.query.minPrice) {
+        filter.pricePerDay.$gte = minPrice;
+      }
+
+      if (req.query.maxPrice) {
+        filter.pricePerDay.$lte = maxPrice;
+      }
+    }
     if (search) {
       filter.name = {
         $regex: search,
@@ -263,9 +281,7 @@ if (location) {
       filter.category = category;
     }
 
-    const equipment = await equipmentCollection
-      .find(filter)
-      .toArray();
+    const equipment = await equipmentCollection.find(filter).toArray();
 
     res.status(200).json({
       success: true,
@@ -280,7 +296,6 @@ if (location) {
     });
   }
 });
-
 
 // Get equipment by logged-in owner
 app.get("/equipment/owner", verifyToken, verifyOwner, async (req, res) => {
