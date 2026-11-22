@@ -238,6 +238,7 @@ app.get("/", (req, res) => {
 app.get("/equipment", async (req, res) => {
   try {
     const search = req.query.search || "";
+    const category = req.query.category;
 
     const filter = {
       approvalStatus: "approved",
@@ -248,6 +249,10 @@ app.get("/equipment", async (req, res) => {
         $regex: search,
         $options: "i",
       };
+    }
+
+    if (category) {
+      filter.category = category;
     }
 
     const equipment = await equipmentCollection
@@ -1494,7 +1499,7 @@ app.patch(
             status,
             updatedAt: new Date(),
           },
-        }
+        },
       );
 
       if (result.matchedCount === 0) {
@@ -1516,7 +1521,7 @@ app.patch(
         message: "Failed to update rental status",
       });
     }
-  }
+  },
 );
 
 // Update user role by Admin
@@ -1571,7 +1576,7 @@ app.patch(
           $set: {
             role,
           },
-        }
+        },
       );
 
       res.status(200).json({
@@ -1586,9 +1591,8 @@ app.patch(
         message: "Failed to update user role",
       });
     }
-  }
+  },
 );
-
 
 // Update equipment by Admin
 app.patch(
@@ -1598,14 +1602,8 @@ app.patch(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const {
-        name,
-        category,
-        description,
-        pricePerDay,
-        location,
-        images,
-      } = req.body;
+      const { name, category, description, pricePerDay, location, images } =
+        req.body;
 
       if (!ObjectId.isValid(id)) {
         res.status(400).json({
@@ -1643,7 +1641,7 @@ app.patch(
             images,
             updatedAt: new Date(),
           },
-        }
+        },
       );
 
       if (result.matchedCount === 0) {
@@ -1666,7 +1664,7 @@ app.patch(
         message: "Failed to update equipment",
       });
     }
-  }
+  },
 );
 
 // Update equipment approval status by Admin
@@ -1727,7 +1725,6 @@ app.patch(
     }
   },
 );
-
 
 // Admin Equipment Delete API
 app.delete(
@@ -1791,7 +1788,6 @@ app.delete(
     }
   },
 );
-
 
 // Admin Analytics
 
@@ -1877,21 +1873,16 @@ app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
       ])
       .toArray();
 
-    const monthlyBookingStats = Array.from(
-      { length: 12 },
-      (_, index) => {
-        const month = index + 1;
+    const monthlyBookingStats = Array.from({ length: 12 }, (_, index) => {
+      const month = index + 1;
 
-        const booking = monthlyBookings.find(
-          (item) => item._id === month
-        );
+      const booking = monthlyBookings.find((item) => item._id === month);
 
-        return {
-          month,
-          total: booking?.total || 0,
-        };
-      }
-    );
+      return {
+        month,
+        total: booking?.total || 0,
+      };
+    });
 
     // Revenue from successful payments
     const revenueResult = await paymentsCollection
@@ -1953,7 +1944,6 @@ app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
     });
   }
 });
-
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
