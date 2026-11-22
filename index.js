@@ -1397,6 +1397,7 @@ app.get("/admin/rentals", verifyToken, verifyAdmin, async (req, res) => {
             endDate: 1,
             totalPrice: 1,
             status: 1,
+            paymentStatus: 1,
             createdAt: 1,
             customerName: {
               $ifNull: [
