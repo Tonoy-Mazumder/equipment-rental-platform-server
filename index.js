@@ -2,7 +2,7 @@ import express from "express";
 import "dotenv/config";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
-
+import { jwtVerify, createRemoteJWKSet } from "jose";
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -38,7 +38,95 @@ const equipmentCollection = database.collection("equipment");
 const bookingCollection = database.collection("bookings");
 const userCollection = database.collection("user");
 console.log("Database:", database.databaseName);
+const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL;
 
+if (!BETTER_AUTH_URL) {
+  throw new Error("BETTER_AUTH_URL is missing");
+}
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${BETTER_AUTH_URL}/api/auth/jwks`)
+);
+async function verifyToken(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized. Token is required.",
+      });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: BETTER_AUTH_URL,
+      audience: BETTER_AUTH_URL,
+    });
+
+    if (!payload.sub) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token.",
+      });
+    }
+
+    const userId = payload.sub;
+
+    const user = await userCollection.findOne({
+      $or: [
+        ...(ObjectId.isValid(userId)
+          ? [{ _id: new ObjectId(userId) }]
+          : []),
+        { _id: userId },
+        { id: userId },
+      ],
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    req.user = {
+      id: userId,
+      role: user.role,
+    };
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token.",
+    });
+  }
+}
+function verifyRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have permission to access this resource",
+      });
+    }
+
+    next();
+  };
+}
+
+const verifyAdmin = verifyRole("admin");
+const verifyOwner = verifyRole("owner");
+const verifyCustomer = verifyRole("customer");
 app.get("/", (req, res) => {
   res.send("RentPro server is running!");
 });
@@ -754,7 +842,7 @@ app.get("/earnings/owner/:ownerId", async (req, res) => {
 });
 
 // Get all users for Admin
-app.get("/admin/users", async (req, res) => {
+app.get("/admin/users",verifyToken, verifyAdmin, async (req, res) => {
   try {
     const users = await userCollection
       .find({})
@@ -784,7 +872,7 @@ app.get("/admin/users", async (req, res) => {
 });
 
 // Get all equipment for Admin
-app.get("/admin/equipment", async (req, res) => {
+app.get("/admin/equipment",verifyToken, verifyAdmin, async (req, res) => {
   try {
     const equipment = await equipmentCollection
       .find({})
@@ -807,7 +895,7 @@ app.get("/admin/equipment", async (req, res) => {
 });
 
 // Get all rentals for Admin
-app.get("/admin/rentals", async (req, res) => {
+app.get("/admin/rentals",verifyToken, verifyAdmin, async (req, res) => {
   try {
     const rentals = await bookingCollection
       .aggregate([
@@ -934,7 +1022,7 @@ app.get("/admin/rentals", async (req, res) => {
 
 
 // Update user role by Admin
-app.patch("/admin/users/:id/role", async (req, res) => {
+app.patch("/admin/users/:id/role",verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { role } = req.body;
@@ -1000,7 +1088,7 @@ app.patch("/admin/users/:id/role", async (req, res) => {
 
 
 // Update equipment approval status by Admin
-app.patch("/admin/equipment/:id/approval", async (req, res) => {
+app.patch("/admin/equipment/:id/approval",verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { approvalStatus } = req.body;
@@ -1054,7 +1142,7 @@ app.patch("/admin/equipment/:id/approval", async (req, res) => {
 });
 
  // Admin Equipment Delete API
-app.delete("/admin/equipment/:id", async (req, res) => {
+app.delete("/admin/equipment/:id",verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { id } = req.params;
 
