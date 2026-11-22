@@ -127,12 +127,15 @@ app.get("/", (req, res) => {
   res.send("RentPro server is running!");
 });
 
-// get all equipment
+
 
 // Get all equipment
+
 app.get("/equipment", async (req, res) => {
   try {
-    const equipment = await equipmentCollection.find().toArray();
+    const equipment = await equipmentCollection
+      .find({ approvalStatus: "approved" })
+      .toArray();
 
     res.status(200).json({
       success: true,
@@ -147,6 +150,7 @@ app.get("/equipment", async (req, res) => {
     });
   }
 });
+
 
 // Get equipment by logged-in owner
 app.get("/equipment/owner", verifyToken, verifyOwner, async (req, res) => {
@@ -478,6 +482,28 @@ app.get("/bookings/owner", verifyToken, verifyOwner, async (req, res) => {
           },
         },
         {
+          $lookup: {
+            from: "equipment",
+            let: { equipmentId: "$equipmentId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, "$$equipmentId"],
+                  },
+                },
+              },
+            ],
+            as: "equipment",
+          },
+        },
+        {
+          $unwind: {
+            path: "$equipment",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
           $project: {
             equipmentId: 1,
             customerId: 1,
@@ -489,6 +515,7 @@ app.get("/bookings/owner", verifyToken, verifyOwner, async (req, res) => {
             createdAt: 1,
             customerName: "$customer.name",
             customerEmail: "$customer.email",
+            equipmentName: "$equipment.name",
           },
         },
       ])
