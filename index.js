@@ -1440,6 +1440,70 @@ app.get("/admin/rentals", verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
+// Update rental booking status by admin
+app.patch(
+  "/admin/rentals/:id/status",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid rental ID",
+        });
+      }
+
+      const allowedStatuses = [
+        "pending",
+        "approved",
+        "rejected",
+        "cancelled",
+        "completed",
+      ];
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid rental status",
+        });
+      }
+
+      const result = await bookingCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            status,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Rental not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Rental status updated successfully",
+      });
+    } catch (error) {
+      console.error("Admin rental status update error:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to update rental status",
+      });
+    }
+  }
+);
+
 // Update user role by Admin
 app.patch(
   "/admin/users/:id/role",
