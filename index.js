@@ -8,15 +8,12 @@ const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
-app.use(express.json());
-
 app.use(
   cors({
     origin: "http://localhost:3000",
     credentials: true,
   }),
 );
-
 const mongoUrl = process.env.MONGODB_URL;
 
 if (!mongoUrl) {
@@ -41,6 +38,110 @@ const bookingCollection = database.collection("bookings");
 const userCollection = database.collection("user");
 const favoritesCollection = database.collection("favorites");
 const paymentsCollection = database.collection("payments");
+
+app.post(
+  "/stripe-webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    console.log("Stripe webhook request received!");
+    const signature = req.headers["stripe-signature"];
+
+    let event;
+
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET,
+      );
+    } catch (error) {
+      console.error("Webhook signature verification failed:", error.message);
+
+      return res.status(400).send(`Webhook Error: ${error.message}`);
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+
+      try {
+        if (session.payment_status !== "paid") {
+          return res.status(200).json({
+            received: true,
+            message: "Payment is not completed yet",
+          });
+        }
+
+        const { equipmentId, customerId, ownerId, startDate, endDate } =
+          session.metadata;
+
+        if (!equipmentId || !customerId || !ownerId || !startDate || !endDate) {
+          throw new Error("Missing checkout metadata");
+        }
+
+        // Check if booking already exists
+        let booking = await bookingCollection.findOne({
+          checkoutSessionId: session.id,
+        });
+
+        // Create booking only once
+        if (!booking) {
+          const bookingData = {
+            equipmentId,
+            customerId,
+            ownerId,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            totalPrice: session.amount_total / 100,
+            status: "pending",
+            paymentStatus: "paid",
+            checkoutSessionId: session.id,
+            createdAt: new Date(),
+          };
+
+          const bookingResult = await bookingCollection.insertOne(bookingData);
+
+          booking = {
+            _id: bookingResult.insertedId,
+            ...bookingData,
+          };
+        }
+
+        // Check if payment already exists
+        const existingPayment = await paymentsCollection.findOne({
+          checkoutSessionId: session.id,
+        });
+
+        if (!existingPayment) {
+          await paymentsCollection.insertOne({
+            checkoutSessionId: session.id,
+            paymentIntentId: session.payment_intent,
+            bookingId: booking._id.toString(),
+            equipmentId,
+            customerId,
+            ownerId,
+            amount: session.amount_total / 100,
+            currency: session.currency,
+            status: "paid",
+            createdAt: new Date(),
+          });
+        }
+
+        console.log("Booking and payment saved:", session.id);
+      } catch (error) {
+        console.error("Webhook processing failed:", error);
+
+        return res.status(500).json({
+          received: false,
+          message: "Failed to save booking and payment",
+        });
+      }
+    }
+
+    res.status(200).json({ received: true });
+  },
+);
+
+app.use(express.json());
 console.log("Database:", database.databaseName);
 const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL;
 
@@ -507,11 +608,12 @@ app.post(
         });
       }
 
-      const days = Math.ceil(
-        (bookingEnd - bookingStart) / (1000 * 60 * 60 * 24),
-      );
+      const days =
+        Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)) + 1;
 
-      const totalPrice = days * Number(equipment.pricePerDay);
+      const rentalPrice = days * Number(equipment.pricePerDay);
+      const serviceFee = Math.round((rentalPrice * 5) / 100);
+      const totalPrice = rentalPrice + serviceFee;
 
       if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
         return res.status(400).json({
