@@ -44,9 +44,7 @@ if (!BETTER_AUTH_URL) {
   throw new Error("BETTER_AUTH_URL is missing");
 }
 
-const JWKS = createRemoteJWKSet(
-  new URL(`${BETTER_AUTH_URL}/api/auth/jwks`)
-);
+const JWKS = createRemoteJWKSet(new URL(`${BETTER_AUTH_URL}/api/auth/jwks`));
 async function verifyToken(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -76,9 +74,7 @@ async function verifyToken(req, res, next) {
 
     const user = await userCollection.findOne({
       $or: [
-        ...(ObjectId.isValid(userId)
-          ? [{ _id: new ObjectId(userId) }]
-          : []),
+        ...(ObjectId.isValid(userId) ? [{ _id: new ObjectId(userId) }] : []),
         { _id: userId },
         { id: userId },
       ],
@@ -132,6 +128,8 @@ app.get("/", (req, res) => {
 });
 
 // get all equipment
+
+// Get all equipment
 app.get("/equipment", async (req, res) => {
   try {
     const equipment = await equipmentCollection.find().toArray();
@@ -141,12 +139,37 @@ app.get("/equipment", async (req, res) => {
       data: equipment,
     });
   } catch (error) {
+    console.error("Failed to fetch equipment:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch equipment",
     });
   }
 });
+
+// Get equipment by logged-in owner
+app.get("/equipment/owner", verifyToken, verifyOwner, async (req, res) => {
+  try {
+    const equipment = await equipmentCollection
+      .find({ ownerId: req.user.id })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json({
+      success: true,
+      data: equipment,
+    });
+  } catch (error) {
+    console.error("Failed to fetch owner equipment:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch owner equipment",
+    });
+  }
+});
+
 // Get single equipment by ID
 app.get("/equipment/:id", async (req, res) => {
   try {
@@ -178,53 +201,23 @@ app.get("/equipment/:id", async (req, res) => {
       data: equipment,
     });
   } catch (error) {
+    console.error("Failed to fetch equipment:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch equipment",
     });
   }
 });
-// Get equipment by owner ID
-app.get("/equipment/owner/:ownerId", async (req, res) => {
-  try {
-    const { ownerId } = req.params;
 
-    const equipment = await equipmentCollection
-      .find({ ownerId })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    res.status(200).json({
-      success: true,
-      data: equipment,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch owner equipment",
-    });
-  }
-});
 // add equipment
 
 app.post("/equipment", verifyToken, verifyOwner, async (req, res) => {
   try {
-    const {
-      name,
-      category,
-      description,
-      pricePerDay,
-      location,
-      images,
-    } = req.body;
+    const { name, category, description, pricePerDay, location, images } =
+      req.body;
 
-    if (
-      !name ||
-      !category ||
-      !description ||
-      !pricePerDay ||
-      !location
-    ) {
+    if (!name || !category || !description || !pricePerDay || !location) {
       return res.status(400).json({
         success: false,
         message: "Please provide all required fields",
@@ -264,20 +257,13 @@ app.post("/equipment", verifyToken, verifyOwner, async (req, res) => {
   }
 });
 
-
 // update equipment by id
 
 app.patch("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      name,
-      category,
-      description,
-      pricePerDay,
-      location,
-      images,
-    } = req.body;
+    const { name, category, description, pricePerDay, location, images } =
+      req.body;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -286,13 +272,7 @@ app.patch("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
       });
     }
 
-    if (
-      !name ||
-      !category ||
-      !description ||
-      !pricePerDay ||
-      !location
-    ) {
+    if (!name || !category || !description || !pricePerDay || !location) {
       return res.status(400).json({
         success: false,
         message: "Please provide all required fields",
@@ -314,7 +294,7 @@ app.patch("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
           images: images || [],
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     if (result.matchedCount === 0) {
@@ -337,7 +317,6 @@ app.patch("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
     });
   }
 });
-
 
 // Delete equipment by ID (only the owner can delete their equipment)
 
@@ -394,7 +373,6 @@ app.delete("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
     });
   }
 });
-
 
 // add bookings
 app.post("/bookings", async (req, res) => {
@@ -849,7 +827,7 @@ app.get("/earnings/owner/:ownerId", async (req, res) => {
 });
 
 // Get all users for Admin
-app.get("/admin/users",verifyToken, verifyAdmin, async (req, res) => {
+app.get("/admin/users", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const users = await userCollection
       .find({})
@@ -879,7 +857,7 @@ app.get("/admin/users",verifyToken, verifyAdmin, async (req, res) => {
 });
 
 // Get all equipment for Admin
-app.get("/admin/equipment",verifyToken, verifyAdmin, async (req, res) => {
+app.get("/admin/equipment", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const equipment = await equipmentCollection
       .find({})
@@ -902,7 +880,7 @@ app.get("/admin/equipment",verifyToken, verifyAdmin, async (req, res) => {
 });
 
 // Get all rentals for Admin
-app.get("/admin/rentals",verifyToken, verifyAdmin, async (req, res) => {
+app.get("/admin/rentals", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const rentals = await bookingCollection
       .aggregate([
@@ -1027,184 +1005,197 @@ app.get("/admin/rentals",verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-
 // Update user role by Admin
-app.patch("/admin/users/:id/role",verifyToken, verifyAdmin, async (req, res) => {
+app.patch(
+  "/admin/users/:id/role",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
     try {
-        const { id } = req.params;
-        const { role } = req.body;
+      const { id } = req.params;
+      const { role } = req.body;
 
-        if (!ObjectId.isValid(id)) {
-            res.status(400).json({
-                success: false,
-                message: "Invalid user ID",
-            });
-            return;
-        }
-
-        if (!["customer", "owner"].includes(role)) {
-            res.status(400).json({
-                success: false,
-                message: "Invalid role. Only customer and owner are allowed.",
-            });
-            return;
-        }
-
-        const user = await userCollection.findOne({
-            _id: new ObjectId(id),
+      if (!ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid user ID",
         });
+        return;
+      }
 
-        if (!user) {
-            res.status(404).json({
-                success: false,
-                message: "User not found",
-            });
-            return;
-        }
-
-        if (user.role === "admin") {
-            res.status(403).json({
-                success: false,
-                message: "Admin role cannot be changed",
-            });
-            return;
-        }
-
-        await userCollection.updateOne(
-            { _id: new ObjectId(id) },
-            {
-                $set: {
-                    role,
-                },
-            }
-        );
-
-        res.status(200).json({
-            success: true,
-            message: "User role updated successfully",
+      if (!["customer", "owner"].includes(role)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid role. Only customer and owner are allowed.",
         });
+        return;
+      }
+
+      const user = await userCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+        return;
+      }
+
+      if (user.role === "admin") {
+        res.status(403).json({
+          success: false,
+          message: "Admin role cannot be changed",
+        });
+        return;
+      }
+
+      await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            role,
+          },
+        },
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "User role updated successfully",
+      });
     } catch (error) {
-        console.error("Failed to update user role:", error);
+      console.error("Failed to update user role:", error);
 
-        res.status(500).json({
-            success: false,
-            message: "Failed to update user role",
-        });
+      res.status(500).json({
+        success: false,
+        message: "Failed to update user role",
+      });
     }
-});
-
+  },
+);
 
 // Update equipment approval status by Admin
-app.patch("/admin/equipment/:id/approval",verifyToken, verifyAdmin, async (req, res) => {
+app.patch(
+  "/admin/equipment/:id/approval",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
     try {
-        const { id } = req.params;
-        const { approvalStatus } = req.body;
+      const { id } = req.params;
+      const { approvalStatus } = req.body;
 
-        if (!ObjectId.isValid(id)) {
-            res.status(400).json({
-                success: false,
-                message: "Invalid equipment ID",
-            });
-            return;
-        }
-
-        if (!["approved", "rejected"].includes(approvalStatus)) {
-            res.status(400).json({
-                success: false,
-                message: "Invalid approval status",
-            });
-            return;
-        }
-
-        const result = await equipmentCollection.updateOne(
-            { _id: new ObjectId(id) },
-            {
-                $set: {
-                    approvalStatus,
-                    updatedAt: new Date(),
-                },
-            }
-        );
-
-        if (result.matchedCount === 0) {
-            res.status(404).json({
-                success: false,
-                message: "Equipment not found",
-            });
-            return;
-        }
-
-        res.status(200).json({
-            success: true,
-            message: `Equipment ${approvalStatus} successfully`,
+      if (!ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid equipment ID",
         });
+        return;
+      }
+
+      if (!["approved", "rejected"].includes(approvalStatus)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid approval status",
+        });
+        return;
+      }
+
+      const result = await equipmentCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            approvalStatus,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      if (result.matchedCount === 0) {
+        res.status(404).json({
+          success: false,
+          message: "Equipment not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Equipment ${approvalStatus} successfully`,
+      });
     } catch (error) {
-        console.error("Failed to update equipment approval:", error);
+      console.error("Failed to update equipment approval:", error);
 
-        res.status(500).json({
-            success: false,
-            message: "Failed to update equipment approval",
-        });
+      res.status(500).json({
+        success: false,
+        message: "Failed to update equipment approval",
+      });
     }
-});
+  },
+);
 
- // Admin Equipment Delete API
-app.delete("/admin/equipment/:id",verifyToken, verifyAdmin, async (req, res) => {
+// Admin Equipment Delete API
+app.delete(
+  "/admin/equipment/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
     try {
-        const { id } = req.params;
+      const { id } = req.params;
 
-        if (!ObjectId.isValid(id)) {
-            res.status(400).json({
-                success: false,
-                message: "Invalid equipment ID",
-            });
-            return;
-        }
-
-        const equipmentId = new ObjectId(id);
-
-        const equipment = await equipmentCollection.findOne({
-            _id: equipmentId,
+      if (!ObjectId.isValid(id)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid equipment ID",
         });
+        return;
+      }
 
-        if (!equipment) {
-            res.status(404).json({
-                success: false,
-                message: "Equipment not found",
-            });
-            return;
-        }
+      const equipmentId = new ObjectId(id);
 
-        const activeBooking = await bookingCollection.findOne({
-            equipmentId: id,
-            status: { $in: ["pending", "approved"] },
+      const equipment = await equipmentCollection.findOne({
+        _id: equipmentId,
+      });
+
+      if (!equipment) {
+        res.status(404).json({
+          success: false,
+          message: "Equipment not found",
         });
+        return;
+      }
 
-        if (activeBooking) {
-            res.status(400).json({
-                success: false,
-                message: "Cannot delete equipment with active bookings",
-            });
-            return;
-        }
+      const activeBooking = await bookingCollection.findOne({
+        equipmentId: id,
+        status: { $in: ["pending", "approved"] },
+      });
 
-        await equipmentCollection.deleteOne({
-            _id: equipmentId,
+      if (activeBooking) {
+        res.status(400).json({
+          success: false,
+          message: "Cannot delete equipment with active bookings",
         });
+        return;
+      }
 
-        res.status(200).json({
-            success: true,
-            message: "Equipment deleted successfully",
-        });
+      await equipmentCollection.deleteOne({
+        _id: equipmentId,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Equipment deleted successfully",
+      });
     } catch (error) {
-        console.error("Failed to delete equipment:", error);
+      console.error("Failed to delete equipment:", error);
 
-        res.status(500).json({
-            success: false,
-            message: "Failed to delete equipment",
-        });
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete equipment",
+      });
     }
-});
+  },
+);
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
