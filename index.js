@@ -1505,6 +1505,7 @@ app.patch(
 );
 
 // Update user role by Admin
+
 app.patch(
   "/admin/users/:id/role",
   verifyToken,
@@ -1515,19 +1516,19 @@ app.patch(
       const { role } = req.body;
 
       if (!ObjectId.isValid(id)) {
-        res.status(400).json({
+        return res.status(400).json({
           success: false,
           message: "Invalid user ID",
         });
-        return;
       }
 
-      if (!["customer", "owner"].includes(role)) {
-        res.status(400).json({
+      const allowedRoles = ["customer", "owner", "admin"];
+
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).json({
           success: false,
-          message: "Invalid role. Only customer and owner are allowed.",
+          message: "Invalid role",
         });
-        return;
       }
 
       const user = await userCollection.findOne({
@@ -1535,19 +1536,18 @@ app.patch(
       });
 
       if (!user) {
-        res.status(404).json({
+        return res.status(404).json({
           success: false,
           message: "User not found",
         });
-        return;
       }
 
+      // Protect existing admin accounts
       if (user.role === "admin") {
-        res.status(403).json({
+        return res.status(403).json({
           success: false,
           message: "Admin role cannot be changed",
         });
-        return;
       }
 
       await userCollection.updateOne(
@@ -1556,7 +1556,7 @@ app.patch(
           $set: {
             role,
           },
-        },
+        }
       );
 
       res.status(200).json({
@@ -1571,8 +1571,9 @@ app.patch(
         message: "Failed to update user role",
       });
     }
-  },
+  }
 );
+
 
 // Update equipment by Admin
 app.patch(
@@ -1778,52 +1779,119 @@ app.delete(
 
 
 // Admin Analytics
+
 app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
   try {
     // User statistics
     const totalUsers = await userCollection.countDocuments();
+
     const totalCustomers = await userCollection.countDocuments({
       role: "customer",
     });
+
     const totalOwners = await userCollection.countDocuments({
       role: "owner",
     });
+
     const totalAdmins = await userCollection.countDocuments({
       role: "admin",
     });
 
     // Equipment statistics
     const totalEquipment = await equipmentCollection.countDocuments();
+
     const pendingEquipment = await equipmentCollection.countDocuments({
       approvalStatus: "pending",
     });
+
     const approvedEquipment = await equipmentCollection.countDocuments({
       approvalStatus: "approved",
     });
+
     const rejectedEquipment = await equipmentCollection.countDocuments({
       approvalStatus: "rejected",
     });
 
     // Rental statistics
     const totalRentals = await bookingCollection.countDocuments();
+
     const pendingRentals = await bookingCollection.countDocuments({
       status: "pending",
     });
+
     const approvedRentals = await bookingCollection.countDocuments({
       status: "approved",
     });
+
     const cancelledRentals = await bookingCollection.countDocuments({
       status: "cancelled",
     });
 
+    const completedRentals = await bookingCollection.countDocuments({
+      status: "completed",
+    });
+
+    // Monthly booking statistics
+    const currentYear = new Date().getFullYear();
+
+    const monthlyBookings = await bookingCollection
+      .aggregate([
+        {
+          $match: {
+            createdAt: {
+              $gte: new Date(`${currentYear}-01-01T00:00:00.000Z`),
+              $lt: new Date(`${currentYear + 1}-01-01T00:00:00.000Z`),
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $month: "$createdAt",
+            },
+            total: {
+              $sum: 1,
+            },
+          },
+        },
+        {
+          $sort: {
+            _id: 1,
+          },
+        },
+      ])
+      .toArray();
+
+    const monthlyBookingStats = Array.from(
+      { length: 12 },
+      (_, index) => {
+        const month = index + 1;
+
+        const booking = monthlyBookings.find(
+          (item) => item._id === month
+        );
+
+        return {
+          month,
+          total: booking?.total || 0,
+        };
+      }
+    );
+
     // Revenue from successful payments
     const revenueResult = await paymentsCollection
       .aggregate([
-        { $match: { status: "paid" } },
+        {
+          $match: {
+            status: "paid",
+          },
+        },
         {
           $group: {
             _id: null,
-            totalRevenue: { $sum: "$amount" },
+            totalRevenue: {
+              $sum: "$amount",
+            },
           },
         },
       ])
@@ -1831,6 +1899,7 @@ app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
 
     const totalRevenue = revenueResult[0]?.totalRevenue || 0;
 
+    // Send analytics response
     res.status(200).send({
       success: true,
       data: {
@@ -1840,19 +1909,24 @@ app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
           owners: totalOwners,
           admins: totalAdmins,
         },
+
         equipment: {
           total: totalEquipment,
           pending: pendingEquipment,
           approved: approvedEquipment,
           rejected: rejectedEquipment,
         },
+
         rentals: {
           total: totalRentals,
           pending: pendingRentals,
           approved: approvedRentals,
           cancelled: cancelledRentals,
+          completed: completedRentals,
         },
+
         totalRevenue,
+        monthlyBookingStats,
       },
     });
   } catch (error) {
@@ -1864,6 +1938,7 @@ app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
     });
   }
 });
+
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
