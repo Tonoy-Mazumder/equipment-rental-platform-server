@@ -657,12 +657,14 @@ app.get(
     }
   },
 );
-// Get single booking by ID
-app.get("/bookings/:id", async (req, res) => {
+
+
+// Get single booking (Customer, Owner, or Admin)
+
+app.get("/bookings/:id", verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check booking ID
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -670,16 +672,25 @@ app.get("/bookings/:id", async (req, res) => {
       });
     }
 
-    // Find booking
     const booking = await bookingCollection.findOne({
       _id: new ObjectId(id),
     });
 
-    // Check booking exists
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: "Booking not found",
+      });
+    }
+
+    const isCustomer = booking.customerId === req.user.id;
+    const isOwner = booking.ownerId === req.user.id;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isCustomer && !isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have permission to view this booking",
       });
     }
 
@@ -688,6 +699,8 @@ app.get("/bookings/:id", async (req, res) => {
       data: booking,
     });
   } catch (error) {
+    console.error("Failed to fetch booking:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch booking",
