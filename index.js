@@ -377,32 +377,60 @@ app.delete("/equipment/:id", verifyToken, verifyOwner, async (req, res) => {
 });
 
 // add bookings
-app.post("/bookings", async (req, res) => {
+app.post("/bookings", verifyToken, verifyCustomer, async (req, res) => {
   try {
-    const { equipmentId, customerId, ownerId, startDate, endDate, totalPrice } =
-      req.body;
+    const { equipmentId, startDate, endDate, totalPrice } = req.body;
 
-    if (
-      !equipmentId ||
-      !customerId ||
-      !ownerId ||
-      !startDate ||
-      !endDate ||
-      totalPrice === undefined
-    ) {
+    if (!equipmentId || !startDate || !endDate || totalPrice === undefined) {
       return res.status(400).json({
         success: false,
         message: "Please provide all required fields",
       });
     }
 
+    if (!ObjectId.isValid(equipmentId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid equipment ID",
+      });
+    }
+
+    const equipment = await equipmentCollection.findOne({
+      _id: new ObjectId(equipmentId),
+      approvalStatus: "approved",
+    });
+
+    if (!equipment) {
+      return res.status(404).json({
+        success: false,
+        message: "Equipment not found or not approved",
+      });
+    }
+
+    const bookingStart = new Date(startDate);
+    const bookingEnd = new Date(endDate);
+    const price = Number(totalPrice);
+
+    if (
+      isNaN(bookingStart.getTime()) ||
+      isNaN(bookingEnd.getTime()) ||
+      bookingEnd <= bookingStart ||
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking information",
+      });
+    }
+
     const newBooking = {
       equipmentId,
-      customerId,
-      ownerId,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      totalPrice: Number(totalPrice),
+      customerId: req.user.id,
+      ownerId: equipment.ownerId,
+      startDate: bookingStart,
+      endDate: bookingEnd,
+      totalPrice: price,
       status: "pending",
       createdAt: new Date(),
     };
@@ -418,13 +446,14 @@ app.post("/bookings", async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Failed to create booking:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to create booking",
     });
   }
 });
-
 app.get("/bookings/customer/:customerId", async (req, res) => {
   try {
     const { customerId } = req.params;
@@ -784,10 +813,7 @@ app.patch(
   },
 );
 
-
-
 // Get owner earnings
-
 
 app.get("/earnings/owner", verifyToken, verifyOwner, async (req, res) => {
   try {
@@ -873,7 +899,6 @@ app.get("/earnings/owner", verifyToken, verifyOwner, async (req, res) => {
     });
   }
 });
-
 
 // Get all users for Admin
 app.get("/admin/users", verifyToken, verifyAdmin, async (req, res) => {
