@@ -795,6 +795,28 @@ app.get("/admin/users", async (req, res) => {
   }
 });
 
+// Get all equipment for Admin
+app.get("/admin/equipment", async (req, res) => {
+    try {
+        const equipment = await equipmentCollection
+            .find({})
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        res.status(200).json({
+            success: true,
+            totalEquipment: equipment.length,
+            data: equipment,
+        });
+    } catch (error) {
+        console.error("Failed to fetch equipment:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch equipment",
+        });
+    }
+});
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
