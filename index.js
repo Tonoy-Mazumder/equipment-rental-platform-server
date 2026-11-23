@@ -926,7 +926,7 @@ app.post(
 );
 
 app.get("/bookings/customer", verifyToken, verifyCustomer, async (req, res) => {
-  console.log("Logged in customer ID:", req.user.id);
+  
   try {
     const bookings = await bookingCollection
       .find({ customerId: req.user.id })
