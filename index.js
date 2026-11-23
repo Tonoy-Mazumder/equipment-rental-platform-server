@@ -237,7 +237,7 @@ app.get("/", (req, res) => {
 app.get("/equipment", async (req, res) => {
   try {
     const search = req.query.search || "";
-   
+
     const filter = {
       approvalStatus: "approved",
     };
@@ -276,17 +276,17 @@ app.get("/equipment", async (req, res) => {
       };
     }
 
-   const categories = Array.isArray(req.query.category)
-  ? req.query.category
-  : req.query.category
-    ? [req.query.category]
-    : [];
+    const categories = Array.isArray(req.query.category)
+      ? req.query.category
+      : req.query.category
+        ? [req.query.category]
+        : [];
 
-if (categories.length > 0) {
-  filter.category = {
-    $in: categories,
-  };
-}
+    if (categories.length > 0) {
+      filter.category = {
+        $in: categories,
+      };
+    }
 
     const equipment = await equipmentCollection.find(filter).toArray();
 
@@ -693,9 +693,8 @@ app.post(
           endDate: bookingEnd.toISOString(),
           totalPrice: String(totalPrice),
         },
-        success_url:
-          "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url: "http://localhost:3000/payment/cancel",
+        success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
       });
 
       res.status(200).json({
