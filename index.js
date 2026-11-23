@@ -10,9 +10,20 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        "http://localhost:3000",
+        process.env.CLIENT_URL,
+      ];
+
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
-  }),
+  })
 );
 const mongoUrl = process.env.MONGODB_URL;
 
