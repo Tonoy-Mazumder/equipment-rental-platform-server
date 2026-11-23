@@ -49,7 +49,7 @@ const bookingCollection = database.collection("bookings");
 const userCollection = database.collection("user");
 const favoritesCollection = database.collection("favorites");
 const paymentsCollection = database.collection("payments");
-
+// stripe webhook
 app.post(
   "/stripe-webhook",
   express.raw({ type: "application/json" }),
@@ -382,13 +382,47 @@ app.get("/equipment/:id", async (req, res) => {
 
 app.post("/equipment", verifyToken, verifyOwner, async (req, res) => {
   try {
-    const { name, category, description, pricePerDay, location, images } =
-      req.body;
+    const {
+      name,
+      category,
+      description,
+      pricePerDay,
+      quantity,
+      location,
+      images,
+    } = req.body;
 
-    if (!name || !category || !description || !pricePerDay || !location) {
+    if (
+      !name ||
+      !category ||
+      !description ||
+      !pricePerDay ||
+      !location ||
+      quantity === undefined
+    ) {
       return res.status(400).json({
         success: false,
         message: "Please provide all required fields",
+      });
+    }
+
+    const equipmentPrice = Number(pricePerDay);
+    const equipmentQuantity = Number(quantity);
+
+    if (!Number.isFinite(equipmentPrice) || equipmentPrice <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Price must be greater than zero",
+      });
+    }
+
+    if (
+      !Number.isInteger(equipmentQuantity) ||
+      equipmentQuantity < 1
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Quantity must be a positive whole number",
       });
     }
 
@@ -397,7 +431,8 @@ app.post("/equipment", verifyToken, verifyOwner, async (req, res) => {
       name,
       category,
       description,
-      pricePerDay: Number(pricePerDay),
+      pricePerDay: equipmentPrice,
+      quantity: equipmentQuantity,
       location,
       images: images || [],
       status: "available",
@@ -621,6 +656,7 @@ app.post("/bookings", verifyToken, verifyCustomer, async (req, res) => {
   }
 });
 
+// create checkout session
 app.post(
   "/create-checkout-session",
   verifyToken,
@@ -1985,9 +2021,6 @@ app.get("/admin/analytics", verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
 
 export default app;
 
