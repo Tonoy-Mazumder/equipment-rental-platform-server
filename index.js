@@ -50,11 +50,13 @@ const userCollection = database.collection("user");
 const favoritesCollection = database.collection("favorites");
 const paymentsCollection = database.collection("payments");
 // stripe webhook
+
 app.post(
   "/stripe-webhook",
   express.raw({ type: "application/json" }),
   async (req, res) => {
     console.log("Stripe webhook request received!");
+
     const signature = req.headers["stripe-signature"];
 
     let event;
@@ -82,11 +84,32 @@ app.post(
           });
         }
 
-        const { equipmentId, customerId, ownerId, startDate, endDate } =
-          session.metadata;
+        const {
+          equipmentId,
+          customerId,
+          ownerId,
+          startDate,
+          endDate,
+          quantity,
+          phone,
+          address,
+          notes,
+        } = session.metadata || {};
 
-        if (!equipmentId || !customerId || !ownerId || !startDate || !endDate) {
-          throw new Error("Missing checkout metadata");
+        const bookingQuantity = Number(quantity);
+
+        if (
+          !equipmentId ||
+          !customerId ||
+          !ownerId ||
+          !startDate ||
+          !endDate ||
+          !Number.isInteger(bookingQuantity) ||
+          bookingQuantity < 1 ||
+          !phone ||
+          !address
+        ) {
+          throw new Error("Missing or invalid checkout metadata");
         }
 
         // Check if booking already exists
@@ -102,6 +125,10 @@ app.post(
             ownerId,
             startDate: new Date(startDate),
             endDate: new Date(endDate),
+            quantity: bookingQuantity,
+            phone,
+            address,
+            notes: notes || "",
             totalPrice: session.amount_total / 100,
             status: "pending",
             paymentStatus: "paid",
@@ -109,7 +136,8 @@ app.post(
             createdAt: new Date(),
           };
 
-          const bookingResult = await bookingCollection.insertOne(bookingData);
+          const bookingResult =
+            await bookingCollection.insertOne(bookingData);
 
           booking = {
             _id: bookingResult.insertedId,
@@ -151,6 +179,7 @@ app.post(
     res.status(200).json({ received: true });
   },
 );
+
 
 app.use(express.json());
 console.log("Database:", database.databaseName);
@@ -657,21 +686,39 @@ app.post("/bookings", verifyToken, verifyCustomer, async (req, res) => {
 });
 
 // create checkout session
+
 app.post(
   "/create-checkout-session",
   verifyToken,
   verifyCustomer,
   async (req, res) => {
     try {
-      const { equipmentId, startDate, endDate } = req.body;
+      const {
+        equipmentId,
+        startDate,
+        endDate,
+        quantity,
+        phone,
+        address,
+        notes,
+      } = req.body;
 
-      if (!equipmentId || !startDate || !endDate) {
+      // Validate required fields
+      if (
+        !equipmentId ||
+        !startDate ||
+        !endDate ||
+        quantity === undefined ||
+        !phone?.trim() ||
+        !address?.trim()
+      ) {
         return res.status(400).json({
           success: false,
           message: "Please provide all required fields",
         });
       }
 
+      // Validate equipment ID
       if (!ObjectId.isValid(equipmentId)) {
         return res.status(400).json({
           success: false,
@@ -679,6 +726,35 @@ app.post(
         });
       }
 
+      // Validate quantity
+      const bookingQuantity = Number(quantity);
+
+      if (
+        !Number.isInteger(bookingQuantity) ||
+        bookingQuantity < 1
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Quantity must be a positive whole number",
+        });
+      }
+
+      // Validate contact information
+      if (
+        typeof phone !== "string" ||
+        phone.trim().length > 30 ||
+        typeof address !== "string" ||
+        address.trim().length > 500 ||
+        typeof notes !== "string" ||
+        notes.trim().length > 500
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid contact information or notes",
+        });
+      }
+
+      // Get approved equipment
       const equipment = await equipmentCollection.findOne({
         _id: new ObjectId(equipmentId),
         approvalStatus: "approved",
@@ -691,13 +767,25 @@ app.post(
         });
       }
 
-      const bookingStart = new Date(startDate);
-      const bookingEnd = new Date(endDate);
+      const totalStock = Number(equipment.quantity);
 
       if (
-        isNaN(bookingStart.getTime()) ||
-        isNaN(bookingEnd.getTime()) ||
-        bookingEnd <= bookingStart
+        !Number.isInteger(totalStock) ||
+        totalStock < 1 ||
+        bookingQuantity > totalStock
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Requested quantity is not available",
+        });
+      }
+
+      // Validate booking dates
+      if (
+        typeof startDate !== "string" ||
+        typeof endDate !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(endDate)
       ) {
         return res.status(400).json({
           success: false,
@@ -705,21 +793,92 @@ app.post(
         });
       }
 
-      const days =
-        Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)) + 1;
+      const bookingStart = new Date(`${startDate}T00:00:00.000Z`);
+      const bookingEnd = new Date(`${endDate}T00:00:00.000Z`);
 
-      const rentalPrice = days * Number(equipment.pricePerDay);
-      const serviceFee = Math.round((rentalPrice * 5) / 100);
+      if (
+        isNaN(bookingStart.getTime()) ||
+        isNaN(bookingEnd.getTime()) ||
+        bookingEnd < bookingStart
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid booking dates",
+        });
+      }
+
+      // Reject past dates
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      if (bookingStart < today) {
+        return res.status(400).json({
+          success: false,
+          message: "Past dates cannot be selected",
+        });
+      }
+
+      // Calculate rental days (inclusive)
+      const days =
+        Math.floor(
+          (bookingEnd.getTime() - bookingStart.getTime()) /
+            (1000 * 60 * 60 * 24),
+        ) + 1;
+
+      // Check existing paid bookings for overlapping dates
+      const existingBookings = await bookingCollection
+        .find({
+          equipmentId,
+          paymentStatus: "paid",
+          status: { $in: ["pending", "approved"] },
+          startDate: { $lte: bookingEnd },
+          endDate: { $gte: bookingStart },
+        })
+        .toArray();
+
+      // Calculate already booked quantity
+      const bookedQuantity = existingBookings.reduce(
+        (total, booking) => {
+          return total + Number(booking.quantity || 1);
+        },
+        0,
+      );
+
+      const remainingQuantity = totalStock - bookedQuantity;
+
+      if (bookingQuantity > remainingQuantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Only ${Math.max(0, remainingQuantity)} item(s) available for these dates`,
+        });
+      }
+
+      // Calculate total price
+      const rentalPrice =
+        days *
+        Number(equipment.pricePerDay) *
+        bookingQuantity;
+
+      const serviceFee = Math.round(
+        (rentalPrice * 5) / 100,
+      );
+
       const totalPrice = rentalPrice + serviceFee;
 
-      if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+      if (
+        !Number.isFinite(totalPrice) ||
+        totalPrice <= 0
+      ) {
         return res.status(400).json({
           success: false,
           message: "Invalid equipment price",
         });
       }
+
+      // Create Stripe checkout session
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
+
         line_items: [
           {
             price_data: {
@@ -732,15 +891,22 @@ app.post(
             quantity: 1,
           },
         ],
+
         metadata: {
           equipmentId,
           customerId: req.user.id,
           ownerId: equipment.ownerId,
           startDate: bookingStart.toISOString(),
           endDate: bookingEnd.toISOString(),
+          quantity: String(bookingQuantity),
+          phone: phone.trim(),
+          address: address.trim(),
+          notes: notes.trim(),
           totalPrice: String(totalPrice),
         },
+
         success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+
         cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
       });
 
@@ -758,7 +924,9 @@ app.post(
     }
   },
 );
+
 app.get("/bookings/customer", verifyToken, verifyCustomer, async (req, res) => {
+  console.log("Logged in customer ID:", req.user.id);
   try {
     const bookings = await bookingCollection
       .find({ customerId: req.user.id })
